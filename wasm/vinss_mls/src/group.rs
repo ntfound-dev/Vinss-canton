@@ -191,6 +191,18 @@ impl Group {
         Ok(())
     }
 
+    pub fn clear_pending_commit(
+        &mut self,
+        provider: &Provider,
+    ) -> Result<(), JsError> {
+        self.inner
+            .clear_pending_commit(
+                provider.as_ref().storage(),
+            )?;
+
+        Ok(())
+    }
+
     pub fn encrypt(
         &mut self,
         provider: &Provider,

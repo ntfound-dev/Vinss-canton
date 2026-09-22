@@ -40,6 +40,8 @@ export interface WasmGroup {
 
   merge_pending_commit(provider: WasmProvider): void;
 
+  clear_pending_commit(provider: WasmProvider): void;
+
   encrypt(
     provider: WasmProvider,
     sender: WasmIdentity,

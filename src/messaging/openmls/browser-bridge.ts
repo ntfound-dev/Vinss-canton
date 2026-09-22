@@ -13,9 +13,20 @@ import type {
   WasmProvider,
 } from "./wasm-api.js";
 
+type PendingMembershipChange =
+  | {
+      type: "add";
+      member: GroupMember;
+    }
+  | {
+      type: "remove";
+      installationId: string;
+    };
+
 interface GroupState {
   group: WasmGroup;
   snapshot: GroupSnapshot;
+  pendingChange?: PendingMembershipChange;
 }
 
 export class BrowserOpenMlsBridge
@@ -125,14 +136,13 @@ export class BrowserOpenMlsBridge
     return cloneSnapshot(snapshot);
   }
 
-  async addMembers(input: {
+  async prepareAddMember(input: {
     conversationId: ConversationId;
-    members: readonly GroupMember[];
-    keyPackages: readonly Uint8Array[];
+    member: GroupMember;
+    keyPackage: Uint8Array;
   }): Promise<{
-    commits: readonly Uint8Array[];
-    welcomes: readonly Uint8Array[];
-    snapshot: GroupSnapshot;
+    commit: Uint8Array;
+    welcome: Uint8Array;
   }> {
     const {
       module,
@@ -143,91 +153,55 @@ export class BrowserOpenMlsBridge
     const state =
       this.requireGroup(input.conversationId);
 
+    this.requireNoPendingCommit(state);
+
     if (
-      input.members.length !==
-      input.keyPackages.length
+      state.snapshot.members.some(
+        (member) =>
+          member.installationId ===
+          input.member.installationId,
+      )
     ) {
       throw new Error(
-        "MLS members and KeyPackages must have the same length",
+        `Installation already belongs to MLS group: ${input.member.installationId}`,
       );
     }
 
-    const commits: Uint8Array[] = [];
-    const welcomes: Uint8Array[] = [];
+    const keyPackage =
+      module.KeyPackage.from_bytes(
+        input.keyPackage,
+      );
 
-    for (
-      let index = 0;
-      index < input.members.length;
-      index += 1
-    ) {
-      const member = input.members[index];
-      const packageBytes = input.keyPackages[index];
-
-      if (!member || !packageBytes) {
-        throw new Error(
-          "Invalid MLS member/KeyPackage pair",
-        );
-      }
-
-      if (
-        state.snapshot.members.some(
-          (existing) =>
-            existing.installationId ===
-            member.installationId,
-        )
-      ) {
-        throw new Error(
-          `Installation already belongs to MLS group: ${member.installationId}`,
-        );
-      }
-
-      const keyPackage =
-        module.KeyPackage.from_bytes(packageBytes);
+    try {
+      const result = state.group.add_member(
+        provider,
+        identity,
+        keyPackage,
+      );
 
       try {
-        const result = state.group.add_member(
-          provider,
-          identity,
-          keyPackage,
-        );
+        state.pendingChange = {
+          type: "add",
+          member: cloneMember(input.member),
+        };
 
-        try {
-          commits.push(copyBytes(result.commit));
-          welcomes.push(copyBytes(result.welcome));
-
-          state.group.merge_pending_commit(
-            provider,
-          );
-        } finally {
-          result.free();
-        }
+        return {
+          commit: copyBytes(result.commit),
+          welcome: copyBytes(result.welcome),
+        };
       } finally {
-        keyPackage.free();
+        result.free();
       }
-
-      state.snapshot = {
-        ...state.snapshot,
-        epoch: state.group.epoch(),
-        members: [
-          ...state.snapshot.members,
-          cloneMember(member),
-        ],
-      };
+    } finally {
+      keyPackage.free();
     }
-
-    return {
-      commits,
-      welcomes,
-      snapshot: cloneSnapshot(state.snapshot),
-    };
   }
 
-  async removeMembers(input: {
+  async prepareRemoveMember(input: {
     conversationId: ConversationId;
-    installationIds: readonly string[];
+    installationId: string;
   }): Promise<{
-    commits: readonly Uint8Array[];
-    snapshot: GroupSnapshot;
+    commit: Uint8Array;
   }> {
     const {
       provider,
@@ -237,66 +211,115 @@ export class BrowserOpenMlsBridge
     const state =
       this.requireGroup(input.conversationId);
 
-    const commits: Uint8Array[] = [];
+    this.requireNoPendingCommit(state);
 
-    for (
-      const installationId
-      of input.installationIds
-    ) {
-      const member = state.snapshot.members.find(
+    const member =
+      state.snapshot.members.find(
         (candidate) =>
           candidate.installationId ===
-          installationId,
+          input.installationId,
       );
 
-      if (!member) {
-        throw new Error(
-          `MLS member not found: ${installationId}`,
-        );
-      }
+    if (!member) {
+      throw new Error(
+        `MLS member not found: ${input.installationId}`,
+      );
+    }
 
-      const leafIndex =
-        state.group.member_index(
-          identityKey(member),
-        );
+    const leafIndex =
+      state.group.member_index(
+        identityKey(member),
+      );
 
-      if (leafIndex === undefined) {
-        throw new Error(
-          `MLS leaf not found for installation: ${installationId}`,
-        );
-      }
+    if (leafIndex === undefined) {
+      throw new Error(
+        `MLS leaf not found for installation: ${input.installationId}`,
+      );
+    }
 
-      const commit =
-        state.group.remove_member(
-          provider,
-          identity,
-          leafIndex,
-        );
-
-      commits.push(copyBytes(commit));
-
-      // A removal advances the MLS epoch.
-      // Removed installations cannot decrypt the new epoch.
-      state.group.merge_pending_commit(
+    const commit =
+      state.group.remove_member(
         provider,
+        identity,
+        leafIndex,
       );
 
+    state.pendingChange = {
+      type: "remove",
+      installationId:
+        input.installationId,
+    };
+
+    return {
+      commit: copyBytes(commit),
+    };
+  }
+
+  async mergePendingCommit(
+    conversationId: ConversationId,
+  ): Promise<GroupSnapshot> {
+    const { provider } =
+      this.requireSession();
+
+    const state =
+      this.requireGroup(conversationId);
+
+    const change =
+      state.pendingChange;
+
+    if (!change) {
+      throw new Error(
+        `MLS group has no pending commit: ${conversationId}`,
+      );
+    }
+
+    state.group.merge_pending_commit(
+      provider,
+    );
+
+    if (change.type === "add") {
+      state.snapshot = {
+        ...state.snapshot,
+        epoch: state.group.epoch(),
+        members: [
+          ...state.snapshot.members,
+          cloneMember(change.member),
+        ],
+      };
+    } else {
       state.snapshot = {
         ...state.snapshot,
         epoch: state.group.epoch(),
         members:
           state.snapshot.members.filter(
-            (candidate) =>
-              candidate.installationId !==
-              installationId,
+            (member) =>
+              member.installationId !==
+              change.installationId,
           ),
       };
     }
 
-    return {
-      commits,
-      snapshot: cloneSnapshot(state.snapshot),
-    };
+    delete state.pendingChange;
+
+    return cloneSnapshot(
+      state.snapshot,
+    );
+  }
+
+  async clearPendingCommit(
+    conversationId: ConversationId,
+  ): Promise<void> {
+    const { provider } =
+      this.requireSession();
+
+    const state =
+      this.requireGroup(conversationId);
+
+    state.group.clear_pending_commit(
+      provider,
+    );
+
+    delete state.pendingChange;
   }
 
   async joinFromWelcome(input: {
@@ -487,6 +510,16 @@ export class BrowserOpenMlsBridge
       identity: this.#identity,
       activeIdentity: this.#activeIdentity,
     };
+  }
+
+  private requireNoPendingCommit(
+    state: GroupState,
+  ): void {
+    if (state.pendingChange) {
+      throw new Error(
+        "MLS group already has a pending commit",
+      );
+    }
   }
 
   private requireGroup(

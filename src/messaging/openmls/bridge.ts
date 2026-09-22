@@ -19,23 +19,29 @@ export interface OpenMlsBridge {
     creator: GroupMember;
   }): Promise<GroupSnapshot>;
 
-  addMembers(input: {
+  prepareAddMember(input: {
     conversationId: ConversationId;
-    members: readonly GroupMember[];
-    keyPackages: readonly Uint8Array[];
+    member: GroupMember;
+    keyPackage: Uint8Array;
   }): Promise<{
-    commits: readonly Uint8Array[];
-    welcomes: readonly Uint8Array[];
-    snapshot: GroupSnapshot;
+    commit: Uint8Array;
+    welcome: Uint8Array;
   }>;
 
-  removeMembers(input: {
+  prepareRemoveMember(input: {
     conversationId: ConversationId;
-    installationIds: readonly string[];
+    installationId: string;
   }): Promise<{
-    commits: readonly Uint8Array[];
-    snapshot: GroupSnapshot;
+    commit: Uint8Array;
   }>;
+
+  mergePendingCommit(
+    conversationId: ConversationId,
+  ): Promise<GroupSnapshot>;
+
+  clearPendingCommit(
+    conversationId: ConversationId,
+  ): Promise<void>;
 
   joinFromWelcome(input: {
     welcome: Uint8Array;
