@@ -1,7 +1,7 @@
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
-use openmls_traits::{signatures::Signer, OpenMlsProvider};
+use openmls_traits::OpenMlsProvider;
 
 const CIPHERSUITE: Ciphersuite =
     Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
@@ -82,9 +82,10 @@ fn alice_bob_group_rekeys_after_bob_is_removed() {
 
     let welcome: MlsMessageIn = welcome.into();
 
-    let welcome = welcome
-        .into_welcome()
-        .expect("Welcome message");
+    let welcome = match welcome.extract() {
+        MlsMessageBodyIn::Welcome(welcome) => welcome,
+        _ => panic!("expected Welcome message"),
+    };
 
     let mut bob_group =
         StagedWelcome::new_from_welcome(
@@ -108,11 +109,13 @@ fn alice_bob_group_rekeys_after_bob_is_removed() {
         )
         .expect("Alice encrypts");
 
+    let message: MlsMessageIn = message.into();
+
     let processed = bob_group
         .process_message(
             &bob_provider,
             message
-                .into_protocol_message()
+                .try_into_protocol_message()
                 .expect("protocol message"),
         )
         .expect("Bob decrypts");
@@ -153,10 +156,12 @@ fn alice_bob_group_rekeys_after_bob_is_removed() {
         )
         .expect("post removal message");
 
+    let secret_message: MlsMessageIn = secret_message.into();
+
     let result = bob_group.process_message(
         &bob_provider,
         secret_message
-            .into_protocol_message()
+            .try_into_protocol_message()
             .expect("protocol message"),
     );
 
