@@ -63,12 +63,13 @@ export class OpenMlsMessagingProvider implements SecureMessagingProvider {
 
     const result = await this.bridge.addMembers({
       conversationId,
+      members,
       keyPackages: ordered,
     });
 
-    // Commit/Welcome transport is intentionally not modeled as an app message.
-    // A dedicated handshake endpoint will be wired in the relay implementation.
-    void result.commit;
+    // MLS Commit/Welcome delivery uses a dedicated handshake channel.
+    // The relay wiring is the next transport milestone.
+    void result.commits;
     void result.welcomes;
 
     return result.snapshot;
@@ -85,8 +86,8 @@ export class OpenMlsMessagingProvider implements SecureMessagingProvider {
       installationIds,
     });
 
-    // As with Add, publish this MLS Commit through the handshake channel.
-    void result.commit;
+    // Publish these through the dedicated MLS handshake channel.
+    void result.commits;
     return result.snapshot;
   }
 

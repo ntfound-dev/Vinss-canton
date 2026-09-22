@@ -1,20 +1,15 @@
 import type {
   ConversationId,
   GroupMember,
+  GroupMetadata,
   GroupSnapshot,
   MessagingIdentity,
 } from "../types.js";
 
-/**
- * Browser-safe boundary around the compiled OpenMLS WASM module.
- *
- * IMPORTANT:
- * - Implement this with OpenMLS/WASM.
- * - Do not replace these methods with home-grown group crypto.
- * - MLS private state remains client-side.
- */
 export interface OpenMlsBridge {
-  initialize(identity: MessagingIdentity): Promise<void>;
+  initialize(
+    identity: MessagingIdentity,
+  ): Promise<void>;
 
   createKeyPackage(): Promise<Uint8Array>;
 
@@ -26,9 +21,10 @@ export interface OpenMlsBridge {
 
   addMembers(input: {
     conversationId: ConversationId;
+    members: readonly GroupMember[];
     keyPackages: readonly Uint8Array[];
   }): Promise<{
-    commit: Uint8Array;
+    commits: readonly Uint8Array[];
     welcomes: readonly Uint8Array[];
     snapshot: GroupSnapshot;
   }>;
@@ -37,12 +33,14 @@ export interface OpenMlsBridge {
     conversationId: ConversationId;
     installationIds: readonly string[];
   }): Promise<{
-    commit: Uint8Array;
+    commits: readonly Uint8Array[];
     snapshot: GroupSnapshot;
   }>;
 
   joinFromWelcome(input: {
     welcome: Uint8Array;
+    metadata: GroupMetadata;
+    members: readonly GroupMember[];
   }): Promise<GroupSnapshot>;
 
   processHandshake(input: {
@@ -69,7 +67,4 @@ export interface OpenMlsBridge {
   getGroupSnapshot(
     conversationId: ConversationId,
   ): Promise<GroupSnapshot>;
-
-  exportEncryptedState(): Promise<Uint8Array>;
-  importEncryptedState(blob: Uint8Array): Promise<void>;
 }
