@@ -3,6 +3,7 @@ import type {
   GroupSnapshot,
   MessagingIdentity,
 } from "../types.js";
+
 import type {
   MlsHandshakeDelivery,
 } from "../transport.js";
@@ -23,28 +24,58 @@ export function buildAddHandshakeDeliveries(
     existingRecipients(
       input.snapshot,
       input.sender.installationId,
-    ).map((recipientInstallationId) => ({
+    ).map(
+      (
+        recipientInstallationId,
+      ): MlsHandshakeDelivery => ({
+        conversationId:
+          input.snapshot.metadata
+            .conversationId,
+        kind: "commit",
+        senderInstallationId:
+          input.sender.installationId,
+        recipientInstallationId,
+        sentAt: input.sentAt,
+        payload:
+          copyBytes(input.commit),
+        change: {
+          type: "add",
+          member:
+            cloneMember(
+              input.newMember,
+            ),
+        },
+      }),
+    );
+
+  const welcome:
+    MlsHandshakeDelivery = {
       conversationId:
-        input.snapshot.metadata.conversationId,
-      kind: "commit" as const,
+        input.snapshot.metadata
+          .conversationId,
+      kind: "welcome",
       senderInstallationId:
         input.sender.installationId,
-      recipientInstallationId,
+      recipientInstallationId:
+        input.newMember
+          .installationId,
       sentAt: input.sentAt,
-      payload: copyBytes(input.commit),
-    }));
-
-  const welcome: MlsHandshakeDelivery = {
-    conversationId:
-      input.snapshot.metadata.conversationId,
-    kind: "welcome",
-    senderInstallationId:
-      input.sender.installationId,
-    recipientInstallationId:
-      input.newMember.installationId,
-    sentAt: input.sentAt,
-    payload: copyBytes(input.welcome),
-  };
+      payload:
+        copyBytes(input.welcome),
+      context: {
+        metadata: {
+          ...input.snapshot.metadata,
+        },
+        members: [
+          ...input.snapshot.members.map(
+            cloneMember,
+          ),
+          cloneMember(
+            input.newMember,
+          ),
+        ],
+      },
+    };
 
   return [
     ...commitDeliveries,
@@ -72,16 +103,27 @@ export function buildRemoveHandshakeDeliveries(
         installationId !==
         input.removedInstallationId,
     )
-    .map((recipientInstallationId) => ({
-      conversationId:
-        input.snapshot.metadata.conversationId,
-      kind: "commit" as const,
-      senderInstallationId:
-        input.sender.installationId,
-      recipientInstallationId,
-      sentAt: input.sentAt,
-      payload: copyBytes(input.commit),
-    }));
+    .map(
+      (
+        recipientInstallationId,
+      ): MlsHandshakeDelivery => ({
+        conversationId:
+          input.snapshot.metadata
+            .conversationId,
+        kind: "commit",
+        senderInstallationId:
+          input.sender.installationId,
+        recipientInstallationId,
+        sentAt: input.sentAt,
+        payload:
+          copyBytes(input.commit),
+        change: {
+          type: "remove",
+          installationId:
+            input.removedInstallationId,
+        },
+      }),
+    );
 }
 
 function existingRecipients(
@@ -89,12 +131,25 @@ function existingRecipients(
   senderInstallationId: string,
 ): readonly string[] {
   return snapshot.members
-    .map((member) => member.installationId)
+    .map(
+      (member) =>
+        member.installationId,
+    )
     .filter(
       (installationId) =>
         installationId !==
         senderInstallationId,
     );
+}
+
+function cloneMember(
+  member: GroupMember,
+): GroupMember {
+  return {
+    ...member,
+    credential:
+      copyBytes(member.credential),
+  };
 }
 
 function copyBytes(

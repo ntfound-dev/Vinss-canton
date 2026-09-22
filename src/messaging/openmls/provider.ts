@@ -23,6 +23,9 @@ import {
   buildAddHandshakeDeliveries,
   buildRemoveHandshakeDeliveries,
 } from "./handshake.js";
+import {
+  syncMlsHandshakes,
+} from "./handshake-sync.js";
 
 const DEFAULT_KEY_PACKAGE_TTL_MS =
   24 * 60 * 60 * 1000;
@@ -32,6 +35,10 @@ export class OpenMlsMessagingProvider
 {
   #identity:
     | MessagingIdentity
+    | undefined;
+
+  #handshakeCursor:
+    | string
     | undefined;
 
   constructor(
@@ -45,6 +52,8 @@ export class OpenMlsMessagingProvider
     identity: MessagingIdentity,
   ): Promise<void> {
     this.#identity = identity;
+    this.#handshakeCursor =
+      undefined;
 
     await this.bridge.initialize(
       identity,
@@ -248,7 +257,29 @@ export class OpenMlsMessagingProvider
       readonly PlainMessage[];
     nextCursor?: string;
   }> {
-    this.requireInitialized();
+    const identity =
+      this.requireInitialized();
+
+    const handshakeResult =
+      await syncMlsHandshakes({
+        bridge: this.bridge,
+        transport: this.transport,
+        identity,
+        ...(this.#handshakeCursor
+          ? {
+              cursor:
+                this.#handshakeCursor,
+            }
+          : {}),
+      });
+
+    if (
+      handshakeResult.nextCursor !==
+      undefined
+    ) {
+      this.#handshakeCursor =
+        handshakeResult.nextCursor;
+    }
 
     const result =
       await this.transport

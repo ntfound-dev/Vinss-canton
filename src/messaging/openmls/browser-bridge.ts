@@ -1,6 +1,7 @@
 import type {
   ConversationId,
   GroupMember,
+  GroupMembershipChange,
   GroupSnapshot,
   MessagingIdentity,
 } from "../types.js";
@@ -380,28 +381,45 @@ export class BrowserOpenMlsBridge
   async processHandshake(input: {
     conversationId: ConversationId;
     message: Uint8Array;
+    change: GroupMembershipChange;
   }): Promise<GroupSnapshot> {
     const { provider } =
       this.requireSession();
 
     const state =
-      this.requireGroup(input.conversationId);
+      this.requireGroup(
+        input.conversationId,
+      );
 
-    const result = state.group.process(
-      provider,
-      input.message,
+    validateMembershipChange(
+      state.snapshot,
+      input.change,
     );
 
+    const result =
+      state.group.process(
+        provider,
+        input.message,
+      );
+
     try {
-      if (result.kind === "application") {
+      if (
+        result.kind !== "commit"
+      ) {
         throw new Error(
-          "Application message received on MLS handshake channel",
+          `Expected MLS Commit, got ${result.kind}`,
         );
       }
 
       state.snapshot = {
         ...state.snapshot,
-        epoch: state.group.epoch(),
+        epoch:
+          state.group.epoch(),
+        members:
+          applyMembershipChange(
+            state.snapshot,
+            input.change,
+          ),
       };
 
       return cloneSnapshot(
@@ -611,4 +629,56 @@ function cloneSnapshot(
         cloneMember,
       ),
   };
+}
+
+function validateMembershipChange(
+  snapshot: GroupSnapshot,
+  change: GroupMembershipChange,
+): void {
+  if (change.type === "add") {
+    if (
+      snapshot.members.some(
+        (member) =>
+          member.installationId ===
+          change.member
+            .installationId,
+      )
+    ) {
+      throw new Error(
+        `MLS member already exists: ${change.member.installationId}`,
+      );
+    }
+
+    return;
+  }
+
+  if (
+    !snapshot.members.some(
+      (member) =>
+        member.installationId ===
+        change.installationId,
+    )
+  ) {
+    throw new Error(
+      `MLS member does not exist: ${change.installationId}`,
+    );
+  }
+}
+
+function applyMembershipChange(
+  snapshot: GroupSnapshot,
+  change: GroupMembershipChange,
+): readonly GroupMember[] {
+  if (change.type === "add") {
+    return [
+      ...snapshot.members,
+      cloneMember(change.member),
+    ];
+  }
+
+  return snapshot.members.filter(
+    (member) =>
+      member.installationId !==
+      change.installationId,
+  );
 }

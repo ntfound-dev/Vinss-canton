@@ -1,6 +1,7 @@
 import type {
   ConversationId,
   GroupMember,
+  GroupMembershipChange,
   GroupMetadata,
   GroupSnapshot,
   MessagingIdentity,
@@ -52,6 +53,7 @@ export interface OpenMlsBridge {
   processHandshake(input: {
     conversationId: ConversationId;
     message: Uint8Array;
+    change: GroupMembershipChange;
   }): Promise<GroupSnapshot>;
 
   encryptApplicationMessage(input: {

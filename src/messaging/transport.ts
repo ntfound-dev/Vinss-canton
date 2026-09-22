@@ -1,6 +1,9 @@
 import type {
   CiphertextEnvelope,
   ConversationId,
+  GroupMember,
+  GroupMembershipChange,
+  GroupMetadata,
   InstallationId,
 } from "./types.js";
 
@@ -11,26 +14,40 @@ export interface KeyPackageEnvelope {
   keyPackage: Uint8Array;
 }
 
-export type MlsHandshakeKind =
-  | "commit"
-  | "welcome";
-
-export interface MlsHandshakeDelivery {
+interface MlsHandshakeBase {
   conversationId: ConversationId;
-  kind: MlsHandshakeKind;
   senderInstallationId: InstallationId;
   recipientInstallationId: InstallationId;
   sentAt: number;
   payload: Uint8Array;
 }
 
-export interface MlsHandshakeEnvelope
-  extends MlsHandshakeDelivery {
-  id: string;
-
-  // Assigned by the relay. Fetch results must be ordered ascending.
-  sequence: bigint;
+export interface MlsCommitDelivery
+  extends MlsHandshakeBase {
+  kind: "commit";
+  change: GroupMembershipChange;
 }
+
+export interface MlsWelcomeContext {
+  metadata: GroupMetadata;
+  members: readonly GroupMember[];
+}
+
+export interface MlsWelcomeDelivery
+  extends MlsHandshakeBase {
+  kind: "welcome";
+  context: MlsWelcomeContext;
+}
+
+export type MlsHandshakeDelivery =
+  | MlsCommitDelivery
+  | MlsWelcomeDelivery;
+
+export type MlsHandshakeEnvelope =
+  MlsHandshakeDelivery & {
+    id: string;
+    sequence: bigint;
+  };
 
 export interface MessagingTransport {
   publishKeyPackage(
@@ -38,24 +55,30 @@ export interface MessagingTransport {
   ): Promise<void>;
 
   fetchKeyPackages(
-    installationIds: readonly InstallationId[],
-  ): Promise<readonly KeyPackageEnvelope[]>;
+    installationIds:
+      readonly InstallationId[],
+  ): Promise<
+    readonly KeyPackageEnvelope[]
+  >;
 
   /**
-   * The relay must persist this batch atomically.
-   *
-   * Either every delivery is accepted or none are.
-   * This prevents members from observing different MLS commits.
+   * Relay persistence must be atomic.
+   * Either the whole MLS delivery batch is accepted or none is.
    */
   publishHandshakes(
-    deliveries: readonly MlsHandshakeDelivery[],
+    deliveries:
+      readonly MlsHandshakeDelivery[],
   ): Promise<void>;
 
+  /**
+   * Results must be returned in strictly increasing sequence order.
+   */
   fetchHandshakes(
     installationId: InstallationId,
     cursor?: string,
   ): Promise<{
-    items: readonly MlsHandshakeEnvelope[];
+    items:
+      readonly MlsHandshakeEnvelope[];
     nextCursor?: string;
   }>;
 
@@ -67,7 +90,8 @@ export interface MessagingTransport {
     conversationId: ConversationId,
     cursor?: string,
   ): Promise<{
-    items: readonly CiphertextEnvelope[];
+    items:
+      readonly CiphertextEnvelope[];
     nextCursor?: string;
   }>;
 }

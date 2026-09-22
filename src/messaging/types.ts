@@ -18,6 +18,16 @@ export interface GroupMember {
   credential: Uint8Array;
 }
 
+export type GroupMembershipChange =
+  | {
+      type: "add";
+      member: GroupMember;
+    }
+  | {
+      type: "remove";
+      installationId: InstallationId;
+    };
+
 export interface GroupMetadata {
   conversationId: ConversationId;
   title: string;
