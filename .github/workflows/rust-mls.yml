@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 jobs:
-  alice-bob-mls:
+  mls:
     runs-on: ubuntu-latest
 
     steps:
@@ -23,9 +23,45 @@ jobs:
       - name: Install Rust 1.91
         uses: dtolnay/rust-toolchain@1.91.0
 
-      - name: Run real OpenMLS lifecycle test
+      - name: Install WASM target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Run OpenMLS lifecycle test
         run: >
           cargo test
           --manifest-path wasm/vinss_mls/Cargo.toml
           --test alice_bob
           -- --nocapture
+
+      - name: Build browser WASM
+        run: >
+          cargo build
+          --manifest-path wasm/vinss_mls/Cargo.toml
+          --release
+          --target wasm32-unknown-unknown
+
+      - name: Install wasm-bindgen CLI
+        run: >
+          cargo install wasm-bindgen-cli
+          --version 0.2.128
+          --locked
+
+      - name: Generate browser bindings
+        run: |
+          rm -rf wasm/vinss_mls/pkg
+
+          wasm-bindgen \
+            wasm/vinss_mls/target/wasm32-unknown-unknown/release/vinss_mls.wasm \
+            --out-dir wasm/vinss_mls/pkg \
+            --target web \
+            --typescript
+
+          test -f wasm/vinss_mls/pkg/vinss_mls.js
+          test -f wasm/vinss_mls/pkg/vinss_mls.d.ts
+          test -f wasm/vinss_mls/pkg/vinss_mls_bg.wasm
+
+      - name: Upload browser WASM package
+        uses: actions/upload-artifact@v4
+        with:
+          name: vinss-mls-browser
+          path: wasm/vinss_mls/pkg/
