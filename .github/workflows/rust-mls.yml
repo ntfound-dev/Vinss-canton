@@ -4,10 +4,20 @@ on:
   push:
     paths:
       - "wasm/vinss_mls/**"
+      - "src/messaging/openmls/**"
+      - "src/messaging/types.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
       - ".github/workflows/rust-mls.yml"
   pull_request:
     paths:
       - "wasm/vinss_mls/**"
+      - "src/messaging/openmls/**"
+      - "src/messaging/types.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
       - ".github/workflows/rust-mls.yml"
 
 permissions:
@@ -19,6 +29,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Use Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install TypeScript dependencies
+        run: npm ci
+
+      - name: Compile browser bridge
+        run: npx tsc
 
       - name: Install Rust 1.91
         uses: dtolnay/rust-toolchain@1.91.0
@@ -59,6 +81,61 @@ jobs:
           test -f wasm/vinss_mls/pkg/vinss_mls.js
           test -f wasm/vinss_mls/pkg/vinss_mls.d.ts
           test -f wasm/vinss_mls/pkg/vinss_mls_bg.wasm
+
+      - name: Run Alice Bob browser WASM smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CHROME="$(
+            command -v google-chrome ||
+            command -v chromium ||
+            command -v chromium-browser ||
+            true
+          )"
+
+          if [ -z "$CHROME" ]; then
+            echo "Chrome/Chromium not found"
+            exit 1
+          fi
+
+          python3 -m http.server 4173 \
+            --bind 127.0.0.1 \
+            > /tmp/vinss-http.log 2>&1 &
+
+          SERVER_PID=$!
+
+          cleanup() {
+            kill "$SERVER_PID" 2>/dev/null || true
+          }
+
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 20); do
+            if curl -fsS \
+              http://127.0.0.1:4173/wasm/vinss_mls/browser-smoke/ \
+              >/dev/null; then
+              break
+            fi
+
+            sleep 0.5
+          done
+
+          "$CHROME" \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --virtual-time-budget=15000 \
+            --dump-dom \
+            http://127.0.0.1:4173/wasm/vinss_mls/browser-smoke/ \
+            > /tmp/vinss-browser.html \
+            2> /tmp/vinss-chrome.log
+
+          cat /tmp/vinss-browser.html
+
+          grep -q \
+            "VINSS MLS BROWSER SMOKE: PASS" \
+            /tmp/vinss-browser.html
 
       - name: Upload browser WASM package
         uses: actions/upload-artifact@v4
