@@ -8,6 +8,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
+      - "frontend/**"
       - ".github/workflows/typescript.yml"
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
+      - "frontend/**"
       - ".github/workflows/typescript.yml"
 
 permissions:
@@ -42,3 +44,11 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck frontend
+        working-directory: frontend
+        run: npm run typecheck

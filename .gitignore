@@ -7,3 +7,5 @@ coverage/
 wasm/**/target/
 .DS_Store
 wasm/**/pkg/
+*.tsbuildinfo
+frontend/.next/
