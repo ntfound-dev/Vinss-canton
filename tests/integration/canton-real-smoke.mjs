@@ -51,8 +51,39 @@ async function request(
     : undefined;
 }
 
+async function connectedSynchronizerId() {
+  const result =
+    await request(
+      "/v2/state/connected-synchronizers",
+    );
+
+  const synchronizers =
+    result?.connectedSynchronizers;
+
+  assert.ok(
+    Array.isArray(
+      synchronizers,
+    ) &&
+      synchronizers.length > 0,
+    "Canton participant has no connected synchronizer",
+  );
+
+  const synchronizerId =
+    synchronizers[0]
+      ?.synchronizerId;
+
+  assert.equal(
+    typeof synchronizerId,
+    "string",
+    "Connected synchronizer ID is missing",
+  );
+
+  return synchronizerId;
+}
+
 async function allocateParty(
   hint,
+  synchronizerId,
 ) {
   const result =
     await request(
@@ -62,7 +93,11 @@ async function allocateParty(
 
         body: JSON.stringify({
           partyIdHint: hint,
-          identityProviderId: "",
+
+          identityProviderId:
+            "",
+
+          synchronizerId,
         }),
       },
     );
@@ -226,19 +261,30 @@ async function submitCreates(
   );
 }
 
+const synchronizerId =
+  await connectedSynchronizerId();
+
+console.log(
+  "Synchronizer:",
+  synchronizerId,
+);
+
 const alice =
   await allocateParty(
     `Alice-${crypto.randomUUID().slice(0, 8)}`,
+    synchronizerId,
   );
 
 const bob =
   await allocateParty(
     `Bob-${crypto.randomUUID().slice(0, 8)}`,
+    synchronizerId,
   );
 
 const charlie =
   await allocateParty(
     `Charlie-${crypto.randomUUID().slice(0, 8)}`,
+    synchronizerId,
   );
 
 console.log(

@@ -88,10 +88,17 @@ jobs:
           ready=0
 
           for attempt in $(seq 1 90); do
-            if curl -fsS \
-              http://127.0.0.1:7575/docs/openapi \
-              >/dev/null; then
+            SYNCHRONIZERS="$(
+              curl -fsS                 http://127.0.0.1:7575/v2/state/connected-synchronizers                 2>/dev/null                 || true
+            )"
+
+            if echo "$SYNCHRONIZERS"               | jq -e                 '.connectedSynchronizers | length > 0'                 >/dev/null 2>&1; then
               ready=1
+
+              echo                 "Connected synchronizers:"
+
+              echo "$SYNCHRONIZERS"                 | jq .
+
               break
             fi
 
@@ -99,12 +106,17 @@ jobs:
           done
 
           if [ "$ready" != "1" ]; then
-            echo "Canton failed to start"
+            echo               "Canton participant did not connect to synchronizer"
+
+            curl -sS               http://127.0.0.1:7575/v2/state/connected-synchronizers               || true
+
+            echo
+
             cat /tmp/vinss-canton.log
             exit 1
           fi
 
-          echo "Canton JSON Ledger API ready"
+          echo             "Canton participant + synchronizer ready"
 
       - name: Run real Canton messaging smoke
         env:
