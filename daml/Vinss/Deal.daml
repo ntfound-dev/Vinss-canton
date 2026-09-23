@@ -1,0 +1,74 @@
+module Vinss.Deal where
+
+template DealProposal
+  with
+    dealId : Text
+    conversationId : Text
+    seller : Party
+    buyer : Party
+    termsHash : Text
+    amount : Text
+    instrumentId : Text
+    expiresAt : Time
+    createdAt : Time
+  where
+    signatory seller
+    observer buyer
+
+    ensure
+      seller /= buyer
+      &&
+      termsHash /= ""
+      &&
+      amount /= ""
+      &&
+      instrumentId /= ""
+      &&
+      expiresAt > createdAt
+
+    choice Accept : ContractId DealAgreement
+      controller buyer
+      do
+        now <- getTime
+
+        assert (now <= expiresAt)
+
+        create DealAgreement with
+          dealId
+          conversationId
+          seller
+          buyer
+          termsHash
+          amount
+          instrumentId
+          expiresAt
+          acceptedAt = now
+
+    choice Reject : ()
+      controller buyer
+      do
+        pure ()
+
+
+template DealAgreement
+  with
+    dealId : Text
+    conversationId : Text
+    seller : Party
+    buyer : Party
+    termsHash : Text
+    amount : Text
+    instrumentId : Text
+    expiresAt : Time
+    acceptedAt : Time
+  where
+    signatory seller, buyer
+
+    ensure
+      seller /= buyer
+      &&
+      termsHash /= ""
+      &&
+      amount /= ""
+      &&
+      instrumentId /= ""

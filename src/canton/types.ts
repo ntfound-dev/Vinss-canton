@@ -3,6 +3,7 @@ export type CantonContractId = string;
 
 export interface DealTerms {
   dealId: string;
+  conversationId: string;
   seller: CantonPartyId;
   buyer: CantonPartyId;
   termsHash: string;

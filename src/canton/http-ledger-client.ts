@@ -6,6 +6,7 @@ import type {
   CantonActiveContractSnapshot,
   CantonAuthenticatedIdentity,
   CantonCreatedContract,
+  CantonExercise,
   CantonLedgerClient,
   CantonSubmissionResult,
   CantonSubmitCreates,
@@ -195,6 +196,67 @@ export class HttpCantonLedgerClient
                   },
                 }),
               ),
+          }),
+        },
+      );
+
+    return {
+      updateId:
+        response.updateId,
+
+      completionOffset:
+        toBigIntOffset(
+          response
+            .completionOffset,
+        ),
+    };
+  }
+
+  async submitExercise(
+    input: CantonExercise,
+  ): Promise<CantonSubmissionResult> {
+    const response =
+      await this.requestJson<{
+        updateId: string;
+        completionOffset:
+          number | string;
+      }>(
+        "/v2/commands/submit-and-wait",
+        {
+          method: "POST",
+
+          body: JSON.stringify({
+            userId:
+              this.#userId,
+
+            commandId:
+              input.commandId,
+
+            actAs: [
+              input.actingParty,
+            ],
+
+            readAs: [
+              input.actingParty,
+            ],
+
+            commands: [
+              {
+                ExerciseCommand: {
+                  templateId:
+                    input.templateId,
+
+                  contractId:
+                    input.contractId,
+
+                  choice:
+                    input.choice,
+
+                  choiceArgument:
+                    input.choiceArgument,
+                },
+              },
+            ],
           }),
         },
       );

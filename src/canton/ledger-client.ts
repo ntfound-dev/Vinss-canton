@@ -15,6 +15,16 @@ export interface CantonSubmitCreates {
     readonly CantonCreate[];
 }
 
+export interface CantonExercise {
+  actingParty: CantonPartyId;
+  commandId: string;
+  templateId: string;
+  contractId: string;
+  choice: string;
+  choiceArgument:
+    Record<string, unknown>;
+}
+
 export interface CantonSubmissionResult {
   updateId: string;
   completionOffset: bigint;
@@ -50,6 +60,11 @@ export interface CantonLedgerClient {
   submitCreates(
     input:
       CantonSubmitCreates,
+  ): Promise<CantonSubmissionResult>;
+
+  submitExercise(
+    input:
+      CantonExercise,
   ): Promise<CantonSubmissionResult>;
 
   queryActiveContracts(

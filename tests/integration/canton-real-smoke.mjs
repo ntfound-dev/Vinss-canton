@@ -541,3 +541,421 @@ console.log(
 console.log(
   "UNRELATED PARTY VISIBILITY: BLOCKED",
 );
+
+async function submitExercise(
+  actingParty,
+  input,
+) {
+  return request(
+    "/v2/commands/submit-and-wait",
+    {
+      method: "POST",
+
+      body: JSON.stringify({
+        userId:
+          "ledger-api-user",
+
+        commandId:
+          `vinss-exercise-${crypto.randomUUID()}`,
+
+        actAs: [
+          actingParty,
+        ],
+
+        readAs: [
+          actingParty,
+        ],
+
+        commands: [
+          {
+            ExerciseCommand: {
+              templateId:
+                input.templateId,
+
+              contractId:
+                input.contractId,
+
+              choice:
+                input.choice,
+
+              choiceArgument:
+                input.choiceArgument ??
+                {},
+            },
+          },
+        ],
+      }),
+    },
+  );
+}
+
+const dealId =
+  crypto.randomUUID();
+
+const proposalResult =
+  await submitCreates(
+    alice,
+    [
+      {
+        templateId:
+          `#${PACKAGE}:Vinss.Deal:DealProposal`,
+
+        createArguments: {
+          dealId,
+
+          conversationId:
+            channelId,
+
+          seller:
+            alice,
+
+          buyer:
+            bob,
+
+          termsHash:
+            crypto
+              .createHash("sha256")
+              .update(
+                "VINSS private deal terms",
+              )
+              .digest("hex"),
+
+          amount:
+            "100",
+
+          instrumentId:
+            "TEST-ASSET",
+
+          createdAt:
+            new Date()
+              .toISOString(),
+
+          expiresAt:
+            new Date(
+              Date.now() +
+                60 * 60 * 1000,
+            ).toISOString(),
+        },
+      },
+    ],
+  );
+
+const proposalOffset =
+  Number(
+    proposalResult
+      .completionOffset,
+  );
+
+const bobDealAcs =
+  await activeContracts(
+    bob,
+    proposalOffset,
+  );
+
+const bobDealEvents =
+  collectCreatedEvents(
+    bobDealAcs,
+  );
+
+const proposal =
+  bobDealEvents.find(
+    (event) =>
+      event
+        ?.createArgument
+        ?.dealId ===
+      dealId,
+  );
+
+assert.ok(
+  proposal,
+  "Bob cannot see VINSS DealProposal",
+);
+
+const charlieDealAcs =
+  await activeContracts(
+    charlie,
+    proposalOffset,
+  );
+
+assert.equal(
+  collectCreatedEvents(
+    charlieDealAcs,
+  ).some(
+    (event) =>
+      event
+        ?.createArgument
+        ?.dealId ===
+      dealId,
+  ),
+  false,
+  "Unrelated Charlie can see VINSS DealProposal",
+);
+
+await submitExercise(
+  bob,
+  {
+    templateId:
+      `#${PACKAGE}:Vinss.Deal:DealProposal`,
+
+    contractId:
+      proposal.contractId,
+
+    choice:
+      "Accept",
+
+    choiceArgument: {},
+  },
+);
+
+const agreementOffset =
+  await ledgerEnd();
+
+const bobAgreementAcs =
+  await activeContracts(
+    bob,
+    agreementOffset,
+  );
+
+const agreement =
+  collectCreatedEvents(
+    bobAgreementAcs,
+  ).find(
+    (event) =>
+      event
+        ?.createArgument
+        ?.dealId ===
+        dealId &&
+      String(
+        event
+          ?.templateId ??
+          "",
+      ).endsWith(
+        ":Vinss.Deal:DealAgreement",
+      ),
+  );
+
+assert.ok(
+  agreement,
+  "VINSS DealAgreement was not created",
+);
+
+console.log(
+  "REAL CANTON DEAL PROPOSAL: PASS",
+);
+
+console.log(
+  "REAL CANTON DEAL ACCEPTANCE: PASS",
+);
+
+console.log(
+  "UNRELATED DEAL VISIBILITY: BLOCKED",
+);
+
+async function submitExercise(
+  actingParty,
+  input,
+) {
+  return request(
+    "/v2/commands/submit-and-wait",
+    {
+      method: "POST",
+
+      body: JSON.stringify({
+        userId:
+          "ledger-api-user",
+
+        commandId:
+          `vinss-exercise-${crypto.randomUUID()}`,
+
+        actAs: [
+          actingParty,
+        ],
+
+        readAs: [
+          actingParty,
+        ],
+
+        commands: [
+          {
+            ExerciseCommand: {
+              templateId:
+                input.templateId,
+
+              contractId:
+                input.contractId,
+
+              choice:
+                input.choice,
+
+              choiceArgument:
+                input.choiceArgument ??
+                {},
+            },
+          },
+        ],
+      }),
+    },
+  );
+}
+
+const dealId =
+  crypto.randomUUID();
+
+const proposalResult =
+  await submitCreates(
+    alice,
+    [
+      {
+        templateId:
+          `#${PACKAGE}:Vinss.Deal:DealProposal`,
+
+        createArguments: {
+          dealId,
+
+          conversationId:
+            channelId,
+
+          seller:
+            alice,
+
+          buyer:
+            bob,
+
+          termsHash:
+            crypto
+              .createHash("sha256")
+              .update(
+                "VINSS private deal terms",
+              )
+              .digest("hex"),
+
+          amount:
+            "100",
+
+          instrumentId:
+            "TEST-ASSET",
+
+          createdAt:
+            new Date()
+              .toISOString(),
+
+          expiresAt:
+            new Date(
+              Date.now() +
+                60 * 60 * 1000,
+            ).toISOString(),
+        },
+      },
+    ],
+  );
+
+const proposalOffset =
+  Number(
+    proposalResult
+      .completionOffset,
+  );
+
+const bobDealAcs =
+  await activeContracts(
+    bob,
+    proposalOffset,
+  );
+
+const bobDealEvents =
+  collectCreatedEvents(
+    bobDealAcs,
+  );
+
+const proposal =
+  bobDealEvents.find(
+    (event) =>
+      event
+        ?.createArgument
+        ?.dealId ===
+      dealId,
+  );
+
+assert.ok(
+  proposal,
+  "Bob cannot see VINSS DealProposal",
+);
+
+const charlieDealAcs =
+  await activeContracts(
+    charlie,
+    proposalOffset,
+  );
+
+assert.equal(
+  collectCreatedEvents(
+    charlieDealAcs,
+  ).some(
+    (event) =>
+      event
+        ?.createArgument
+        ?.dealId ===
+      dealId,
+  ),
+  false,
+  "Unrelated Charlie can see VINSS DealProposal",
+);
+
+await submitExercise(
+  bob,
+  {
+    templateId:
+      `#${PACKAGE}:Vinss.Deal:DealProposal`,
+
+    contractId:
+      proposal.contractId,
+
+    choice:
+      "Accept",
+
+    choiceArgument: {},
+  },
+);
+
+const agreementOffset =
+  await ledgerEnd();
+
+const bobAgreementAcs =
+  await activeContracts(
+    bob,
+    agreementOffset,
+  );
+
+const agreement =
+  collectCreatedEvents(
+    bobAgreementAcs,
+  ).find(
+    (event) =>
+      event
+        ?.createArgument
+        ?.dealId ===
+        dealId &&
+      String(
+        event
+          ?.templateId ??
+          "",
+      ).endsWith(
+        ":Vinss.Deal:DealAgreement",
+      ),
+  );
+
+assert.ok(
+  agreement,
+  "VINSS DealAgreement was not created",
+);
+
+console.log(
+  "REAL CANTON DEAL PROPOSAL: PASS",
+);
+
+console.log(
+  "REAL CANTON DEAL ACCEPTANCE: PASS",
+);
+
+console.log(
+  "UNRELATED DEAL VISIBILITY: BLOCKED",
+);

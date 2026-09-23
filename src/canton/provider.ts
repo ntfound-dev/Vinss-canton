@@ -6,12 +6,7 @@ import type {
   SettlementReceipt,
 } from "./types.js";
 
-/**
- * Canton boundary for VINSS business state.
- *
- * Keep messaging crypto completely separate from this interface.
- */
-export interface CantonDealProvider {
+export interface CantonOfferProvider {
   createProposal(
     actingParty: CantonPartyId,
     terms: DealTerms,
@@ -19,17 +14,36 @@ export interface CantonDealProvider {
 
   acceptProposal(
     actingParty: CantonPartyId,
-    proposalContractId: CantonContractId,
+    proposalContractId:
+      CantonContractId,
   ): Promise<DealAgreement>;
 
+  rejectProposal(
+    actingParty: CantonPartyId,
+    proposalContractId:
+      CantonContractId,
+  ): Promise<void>;
+}
+
+/**
+ * Full VINSS Canton business workflow.
+ *
+ * Offer/Agreement lands first.
+ * Fulfillment/settlement remains the next product layer.
+ */
+export interface CantonDealProvider
+  extends CantonOfferProvider
+{
   submitFulfillment(
     actingParty: CantonPartyId,
-    agreementContractId: CantonContractId,
+    agreementContractId:
+      CantonContractId,
     fulfillmentHash: string,
   ): Promise<CantonContractId>;
 
   settle(
     actingParty: CantonPartyId,
-    agreementContractId: CantonContractId,
+    agreementContractId:
+      CantonContractId,
   ): Promise<SettlementReceipt>;
 }
