@@ -52,6 +52,31 @@ class FakeLedger
     > {
     return this.contracts;
   }
+
+  async queryCreatedContractsSince(
+    _party: string,
+    afterExclusive: bigint,
+  ): Promise<
+    readonly CantonCreatedContract[]
+  > {
+    return this.contracts.filter(
+      (contract) =>
+        contract.offset >
+        afterExclusive,
+    );
+  }
+
+  async getAuthenticatedIdentity() {
+    return {
+      userId: "alice-user",
+      primaryParty:
+        "Alice::party",
+      canActAs: [
+        "Alice::party",
+      ],
+      canReadAs: [],
+    };
+  }
 }
 
 const directory:

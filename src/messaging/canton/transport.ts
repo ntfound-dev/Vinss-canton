@@ -341,8 +341,9 @@ export class CantonMessagingTransport
 
     const contracts =
       await this.ledger
-        .queryActiveContracts(
+        .queryCreatedContractsSince(
           activeParty,
+          after,
         );
 
     const items:
@@ -561,8 +562,9 @@ export class CantonMessagingTransport
 
     const contracts =
       await this.ledger
-        .queryActiveContracts(
+        .queryCreatedContractsSince(
           party,
+          after,
         );
 
     const rows =

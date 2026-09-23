@@ -29,9 +29,20 @@ export interface CantonCreatedContract {
   packageName?: string;
 }
 
+export interface CantonAuthenticatedIdentity {
+  userId: string;
+  primaryParty:
+    CantonPartyId;
+  canActAs:
+    readonly CantonPartyId[];
+  canReadAs:
+    readonly CantonPartyId[];
+}
+
 export interface CantonLedgerClient {
   submitCreates(
-    input: CantonSubmitCreates,
+    input:
+      CantonSubmitCreates,
   ): Promise<CantonSubmissionResult>;
 
   queryActiveContracts(
@@ -39,4 +50,14 @@ export interface CantonLedgerClient {
   ): Promise<
     readonly CantonCreatedContract[]
   >;
+
+  queryCreatedContractsSince(
+    party: CantonPartyId,
+    afterExclusive: bigint,
+  ): Promise<
+    readonly CantonCreatedContract[]
+  >;
+
+  getAuthenticatedIdentity():
+    Promise<CantonAuthenticatedIdentity>;
 }
