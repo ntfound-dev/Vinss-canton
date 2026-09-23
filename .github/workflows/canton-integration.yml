@@ -7,7 +7,14 @@ on:
       - "daml.yaml"
       - "src/canton/**"
       - "src/messaging/canton/**"
+      - "src/messaging/openmls/**"
+      - "src/messaging/types.ts"
+      - "src/messaging/content.ts"
+      - "wasm/vinss_mls/**"
       - "tests/integration/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
       - ".github/workflows/canton-integration.yml"
 
   pull_request:
@@ -16,7 +23,14 @@ on:
       - "daml.yaml"
       - "src/canton/**"
       - "src/messaging/canton/**"
+      - "src/messaging/openmls/**"
+      - "src/messaging/types.ts"
+      - "src/messaging/content.ts"
+      - "wasm/vinss_mls/**"
       - "tests/integration/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
       - ".github/workflows/canton-integration.yml"
 
 permissions:
@@ -39,6 +53,47 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Install Rust 1.91
+        uses: dtolnay/rust-toolchain@1.91.0
+
+      - name: Install WASM target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Build OpenMLS WASM
+        run: >
+          cargo build
+          --manifest-path wasm/vinss_mls/Cargo.toml
+          --release
+          --target wasm32-unknown-unknown
+
+      - name: Install wasm-bindgen CLI
+        run: >
+          cargo install wasm-bindgen-cli
+          --version 0.2.128
+          --locked
+
+      - name: Generate Node OpenMLS bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf \
+            wasm/vinss_mls/pkg-node
+
+          wasm-bindgen \
+            wasm/vinss_mls/target/wasm32-unknown-unknown/release/vinss_mls.wasm \
+            --out-dir wasm/vinss_mls/pkg-node \
+            --target nodejs
+
+          test -f \
+            wasm/vinss_mls/pkg-node/vinss_mls.js
+
+          test -f \
+            wasm/vinss_mls/pkg-node/vinss_mls_bg.wasm
+
       - name: Use Java 17
         uses: actions/setup-java@v4
         with:
@@ -52,7 +107,8 @@ jobs:
             https://get.digitalasset.com/install/install.sh \
             | sh
 
-          echo "$HOME/.dpm/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.dpm/bin" \
+            >> "$GITHUB_PATH"
 
       - name: Install Daml SDK
         run: dpm install 3.5.10
@@ -89,15 +145,23 @@ jobs:
 
           for attempt in $(seq 1 90); do
             SYNCHRONIZERS="$(
-              curl -fsS                 http://127.0.0.1:7575/v2/state/connected-synchronizers                 2>/dev/null                 || true
+              curl -fsS \
+                http://127.0.0.1:7575/v2/state/connected-synchronizers \
+                2>/dev/null \
+                || true
             )"
 
-            if echo "$SYNCHRONIZERS"               | jq -e                 '.connectedSynchronizers | length > 0'                 >/dev/null 2>&1; then
+            if echo "$SYNCHRONIZERS" \
+              | jq -e \
+                '.connectedSynchronizers | length > 0' \
+                >/dev/null 2>&1; then
               ready=1
 
-              echo                 "Connected synchronizers:"
+              echo \
+                "Connected synchronizers:"
 
-              echo "$SYNCHRONIZERS"                 | jq .
+              echo "$SYNCHRONIZERS" \
+                | jq .
 
               break
             fi
@@ -106,24 +170,28 @@ jobs:
           done
 
           if [ "$ready" != "1" ]; then
-            echo               "Canton participant did not connect to synchronizer"
+            echo \
+              "Canton participant did not connect to synchronizer"
 
-            curl -sS               http://127.0.0.1:7575/v2/state/connected-synchronizers               || true
+            cat \
+              /tmp/vinss-canton.log
 
-            echo
-
-            cat /tmp/vinss-canton.log
             exit 1
           fi
 
-          echo             "Canton participant + synchronizer ready"
-
-      - name: Run real Canton messaging smoke
+      - name: Run raw Canton messaging smoke
         env:
           CANTON_BASE_URL: http://127.0.0.1:7575
         run: >
           node
           tests/integration/canton-real-smoke.mjs
+
+      - name: Run true OpenMLS Canton E2E
+        env:
+          CANTON_BASE_URL: http://127.0.0.1:7575
+        run: >
+          node
+          tests/integration/canton-openmls-e2e.mjs
 
       - name: Show Canton log on failure
         if: failure()
