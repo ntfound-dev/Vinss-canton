@@ -88,11 +88,21 @@ jobs:
             --out-dir wasm/vinss_mls/pkg-node \
             --target nodejs
 
+          # wasm-bindgen --target nodejs emits CommonJS.
+          # Override the repository-level "type": "module"
+          # for this generated package only.
+          printf '%s\n' \
+            '{"type":"commonjs"}' \
+            > wasm/vinss_mls/pkg-node/package.json
+
           test -f \
             wasm/vinss_mls/pkg-node/vinss_mls.js
 
           test -f \
             wasm/vinss_mls/pkg-node/vinss_mls_bg.wasm
+
+          test -f \
+            wasm/vinss_mls/pkg-node/package.json
 
       - name: Use Java 17
         uses: actions/setup-java@v4
