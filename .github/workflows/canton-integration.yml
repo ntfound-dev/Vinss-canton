@@ -140,18 +140,38 @@ jobs:
 
           test -n "$DAR"
 
-          echo "Using DAR: $DAR"
+          MAIN_PACKAGE_ID="$(
+            dpm damlc inspect-dar \
+              --json "$DAR" \
+              | jq -r \
+                '.main_package_id'
+          )"
 
+          test -n \
+            "$MAIN_PACKAGE_ID"
+
+          test \
+            "$MAIN_PACKAGE_ID" \
+            != "null"
+
+          echo \
+            "Using DAR: $DAR"
+
+          echo \
+            "Main package: $MAIN_PACKAGE_ID"
+
+          # Start the participant first.
+          # DAR upload/vetting is performed explicitly below,
+          # after the synchronizer is connected.
           nohup dpm sandbox \
             --json-api-port 7575 \
-            --dar "$DAR" \
             > /tmp/vinss-canton.log \
             2>&1 &
 
           echo $! \
             > /tmp/vinss-canton.pid
 
-          ready=0
+          SYNCHRONIZER_ID=""
 
           for attempt in $(seq 1 90); do
             SYNCHRONIZERS="$(
@@ -161,17 +181,17 @@ jobs:
                 || true
             )"
 
-            if echo "$SYNCHRONIZERS" \
-              | jq -e \
-                '.connectedSynchronizers | length > 0' \
-                >/dev/null 2>&1; then
-              ready=1
-
-              echo \
-                "Connected synchronizers:"
-
+            SYNCHRONIZER_ID="$(
               echo "$SYNCHRONIZERS" \
-                | jq .
+                | jq -r \
+                  '.connectedSynchronizers[0].synchronizerId // empty' \
+                2>/dev/null \
+                || true
+            )"
+
+            if [ -n "$SYNCHRONIZER_ID" ]; then
+              echo \
+                "Connected synchronizer: $SYNCHRONIZER_ID"
 
               break
             fi
@@ -179,7 +199,7 @@ jobs:
             sleep 2
           done
 
-          if [ "$ready" != "1" ]; then
+          if [ -z "$SYNCHRONIZER_ID" ]; then
             echo \
               "Canton participant did not connect to synchronizer"
 
@@ -188,6 +208,145 @@ jobs:
 
             exit 1
           fi
+
+          ENCODED_SYNC="$(
+            jq -nr \
+              --arg value \
+                "$SYNCHRONIZER_ID" \
+              '$value | @uri'
+          )"
+
+          echo \
+            "Uploading and vetting VINSS DAR..."
+
+          curl \
+            -fsS \
+            -X POST \
+            -H \
+              'content-type: application/octet-stream' \
+            --data-binary \
+              @"$DAR" \
+            "http://127.0.0.1:7575/v2/packages?vetAllPackages=true&synchronizerId=${ENCODED_SYNC}"
+
+          echo
+
+          package_ready=0
+
+          for attempt in $(seq 1 60); do
+            STATUS="$(
+              curl -fsS \
+                "http://127.0.0.1:7575/v2/packages/${MAIN_PACKAGE_ID}/status" \
+                2>/dev/null \
+                || true
+            )"
+
+            if echo "$STATUS" \
+              | jq -e \
+                '.packageStatus == "PACKAGE_STATUS_REGISTERED"' \
+                >/dev/null 2>&1; then
+
+              package_ready=1
+
+              echo \
+                "VINSS package registered"
+
+              break
+            fi
+
+            sleep 1
+          done
+
+          if [ "$package_ready" != "1" ]; then
+            echo \
+              "VINSS package never became registered"
+
+            curl -sS \
+              "http://127.0.0.1:7575/v2/packages/${MAIN_PACKAGE_ID}/status" \
+              || true
+
+            echo
+
+            cat \
+              /tmp/vinss-canton.log
+
+            exit 1
+          fi
+
+          vetted=0
+
+          for attempt in $(seq 1 60); do
+            VETTING="$(
+              curl -fsS \
+                -X POST \
+                -H \
+                  'content-type: application/json' \
+                --data \
+                  "{\"packageMetadataFilter\":{\"packageIds\":[\"${MAIN_PACKAGE_ID}\"]}}" \
+                http://127.0.0.1:7575/v2/package-vetting/list \
+                2>/dev/null \
+                || true
+            )"
+
+            if echo "$VETTING" \
+              | jq -e \
+                --arg packageId \
+                  "$MAIN_PACKAGE_ID" \
+                --arg synchronizerId \
+                  "$SYNCHRONIZER_ID" \
+                '
+                  any(
+                    .vettedPackages[]?;
+                    (
+                      .synchronizerId ==
+                        $synchronizerId
+                    )
+                    and
+                    any(
+                      .packages[]?;
+                      .packageId ==
+                        $packageId
+                    )
+                  )
+                ' \
+                >/dev/null 2>&1; then
+
+              vetted=1
+
+              echo \
+                "VINSS package vetted on synchronizer"
+
+              echo "$VETTING" \
+                | jq .
+
+              break
+            fi
+
+            sleep 1
+          done
+
+          if [ "$vetted" != "1" ]; then
+            echo \
+              "VINSS package never became vetted"
+
+            curl -sS \
+              -X POST \
+              -H \
+                'content-type: application/json' \
+              --data \
+                "{\"packageMetadataFilter\":{\"packageIds\":[\"${MAIN_PACKAGE_ID}\"]}}" \
+              http://127.0.0.1:7575/v2/package-vetting/list \
+              || true
+
+            echo
+
+            cat \
+              /tmp/vinss-canton.log
+
+            exit 1
+          fi
+
+          echo \
+            "Canton + synchronizer + VINSS package ready"
 
       - name: Run raw Canton messaging smoke
         env:
