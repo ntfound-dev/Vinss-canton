@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import {
   useParams,
   useSearchParams,
 } from "next/navigation";
+
 import {
-  FormEvent,
   useEffect,
   useState,
 } from "react";
@@ -17,11 +16,18 @@ import {
   type CantonRoomStatus,
 } from "@/lib/canton-room-runtime";
 
-type RoomTab =
-  | "message"
-  | "group"
-  | "activity"
-  | "loyalty";
+import {
+  RoomHeader,
+} from "@/components/room/RoomHeader";
+
+import {
+  RoomTabs,
+  type RoomTab,
+} from "@/components/room/RoomTabs";
+
+import {
+  CantonConversationPanel,
+} from "@/components/room/CantonConversationPanel";
 
 export default function RoomPage() {
   const params =
@@ -114,7 +120,9 @@ export default function RoomPage() {
           onMessages(
             incoming,
           ) {
-            if (disposed) {
+            if (
+              disposed
+            ) {
               return;
             }
 
@@ -130,7 +138,9 @@ export default function RoomPage() {
           onError(
             cause,
           ) {
-            if (!disposed) {
+            if (
+              !disposed
+            ) {
               setError(
                 cause.message,
               );
@@ -139,10 +149,10 @@ export default function RoomPage() {
         })
         .then(
           (connected) => {
-            if (disposed) {
-              connected
-                .close();
-
+            if (
+              disposed
+            ) {
+              connected.close();
               return;
             }
 
@@ -157,7 +167,9 @@ export default function RoomPage() {
         .catch(
           (cause:
             unknown) => {
-            if (!disposed) {
+            if (
+              !disposed
+            ) {
               setError(
                 errorText(
                   cause,
@@ -182,12 +194,7 @@ export default function RoomPage() {
     ],
   );
 
-  async function send(
-    event:
-      FormEvent<HTMLFormElement>,
-  ) {
-    event.preventDefault();
-
+  async function send() {
     if (
       !runtime ||
       status !== "ready" ||
@@ -228,106 +235,38 @@ export default function RoomPage() {
     }
   }
 
-  const items = [
-    {
-      key:
-        "message" as const,
-      label:
-        "Message",
-    },
-    {
-      key:
-        "group" as const,
-      label:
-        "Group",
-    },
-    {
-      key:
-        "activity" as const,
-      label:
-        "Activity",
-    },
-    {
-      key:
-        "loyalty" as const,
-      label:
-        "Loyalty",
-    },
-  ];
-
   const configured =
     Boolean(
       peerParty &&
       peerInstallation,
     );
 
+  const peerLabel =
+    peerInstallation
+      ? shortId(
+          peerInstallation,
+        )
+      : "private peer";
+
   return (
     <main className="vinss-page">
       <div className="relative z-10 mx-auto min-h-screen max-w-5xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8">
-        <header className="mb-4 flex items-center gap-2.5">
-          <Link
-            href="/"
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-vault/55 text-paper/55 ring-1 ring-wire/60"
-          >
-            ←
-          </Link>
+        <RoomHeader
+          label="VINSS Secure Room"
+          roomId={
+            params.roomId
+          }
+          status={status}
+        />
 
-          <div className="min-w-0 flex-1">
-            <p className="text-[8px] uppercase tracking-[0.17em] text-signal/55">
-              Private Deal Room
-            </p>
+        <RoomTabs
+          value={tab}
+          onChange={setTab}
+        />
 
-            <h1 className="truncate text-[18px] font-medium text-paper">
-              VINSS Secure Room
-            </h1>
-
-            <p className="truncate font-mono text-[8px] text-paper/20">
-              {params.roomId}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 border border-signal/15 bg-signal/[0.04] px-3 py-2 text-[9px] uppercase text-signal/70">
-            <span className="vinss-live-dot" />
-            {status === "ready"
-              ? "Encrypted"
-              : status ===
-                  "waiting_peer"
-                ? "Waiting"
-                : status ===
-                    "connecting"
-                  ? "Connecting"
-                  : "Offline"}
-          </div>
-        </header>
-
-        <nav className="mb-3 rounded-2xl bg-vault/35 p-1 ring-1 ring-wire/65">
-          <div className="flex gap-1 overflow-x-auto sm:grid sm:grid-cols-4">
-            {items.map(
-              (item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() =>
-                    setTab(
-                      item.key,
-                    )
-                  }
-                  className={
-                    tab === item.key
-                      ? "min-w-[108px] flex-1 rounded-xl bg-signal/[0.09] px-3 py-2.5 text-[11px] text-signal ring-1 ring-signal/15 sm:min-w-0"
-                      : "min-w-[108px] flex-1 rounded-xl px-3 py-2.5 text-[11px] text-paper/38 sm:min-w-0"
-                  }
-                >
-                  {item.label}
-                </button>
-              ),
-            )}
-          </div>
-        </nav>
-
-        {!configured && (
-          <div className="mb-3 border border-wire/50 bg-vault/25 px-4 py-3 text-[11px] leading-5 text-paper/40">
-            Room shell ready. Secure peer parameters are not present yet.
+        {error && (
+          <div className="mb-3 rounded-xl border border-danger/35 bg-danger/[0.04] px-3 py-2.5 text-[10px] text-danger">
+            {error}
           </div>
         )}
 
@@ -351,125 +290,50 @@ export default function RoomPage() {
                       ),
                   );
               }}
-              className="mb-3 border border-signal/20 bg-signal/[0.05] px-3 py-2 text-[10px] text-signal"
+              className="mb-3 rounded-xl border border-signal/20 bg-signal/[0.05] px-3 py-2 text-[10px] text-signal"
             >
               Retry peer KeyPackage
             </button>
           )}
 
-        {error && (
-          <div className="mb-3 border border-danger/35 bg-danger/[0.04] px-3 py-2 text-[10px] text-danger">
-            {error}
-          </div>
-        )}
-
-        {tab === "message" && (
-          <section className="vinss-panel flex min-h-[66vh] flex-col">
-            <div className="border-b border-wire/45 px-4 py-3">
-              <p className="text-[9px] uppercase tracking-[0.16em] text-paper/30">
-                OpenMLS private conversation
-              </p>
-            </div>
-
-            <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
-              {messages.length ===
-                0 && (
-                <div className="m-auto text-center">
-                  <p className="text-sm text-paper/55">
-                    No encrypted messages yet
-                  </p>
-
-                  <p className="mt-2 text-[11px] text-paper/28">
-                    Messages here travel as MLS ciphertext through Canton.
-                  </p>
-                </div>
-              )}
-
-              {messages.map(
-                (message) => (
-                  <div
-                    key={
-                      message.id
-                    }
-                    className={
-                      message.own
-                        ? "ml-auto max-w-[82%] border border-signal/20 bg-signal/[0.07] px-3 py-2.5"
-                        : "mr-auto max-w-[82%] border border-wire/55 bg-vault/60 px-3 py-2.5"
-                    }
-                  >
-                    <p className="text-xs leading-5 text-paper/85">
-                      {
-                        message.text
-                      }
-                    </p>
-
-                    <p className="mt-1 text-[8px] text-paper/25">
-                      {new Date(
-                        message.sentAt,
-                      ).toLocaleTimeString()}
-                    </p>
-                  </div>
-                ),
-              )}
-            </div>
-
-            <form
-              onSubmit={send}
-              className="border-t border-wire/45 p-3"
-            >
-              <div className="flex items-end gap-2">
-                <textarea
-                  value={draft}
-                  onChange={(
-                    event,
-                  ) =>
-                    setDraft(
-                      event.target
-                        .value,
-                    )
-                  }
-                  rows={1}
-                  disabled={
-                    status !==
-                      "ready" ||
-                    busy
-                  }
-                  placeholder={
-                    status ===
-                    "ready"
-                      ? "Encrypted message…"
-                      : "Secure session connecting…"
-                  }
-                  className="min-h-11 flex-1 resize-none border border-wire/55 bg-black/20 px-3 py-3 text-xs text-paper outline-none placeholder:text-paper/20 disabled:opacity-50"
-                />
-
-                <button
-                  type="submit"
-                  disabled={
-                    status !==
-                      "ready" ||
-                    busy ||
-                    !draft.trim()
-                  }
-                  className="h-11 border border-signal/20 bg-signal/[0.06] px-4 text-xs font-medium text-signal disabled:opacity-35"
-                >
-                  {busy
-                    ? "Sending…"
-                    : "Send"}
-                </button>
-              </div>
-            </form>
-          </section>
-        )}
-
-        {tab !== "message" && (
-          <section className="vinss-panel min-h-[66vh] p-6">
-            <p className="text-[9px] uppercase tracking-[0.16em] text-signal/55">
+        {tab ===
+        "message" ? (
+          <CantonConversationPanel
+            messages={
+              messages
+            }
+            draft={draft}
+            busy={busy}
+            configured={
+              configured
+            }
+            status={status}
+            peerLabel={
+              peerLabel
+            }
+            onDraftChange={
+              setDraft
+            }
+            onSend={send}
+          />
+        ) : (
+          <section className="min-h-[520px] rounded-2xl border border-wire/70 bg-vault/25 p-5">
+            <p className="text-[8px] uppercase tracking-[0.17em] text-signal/55">
               {tab}
             </p>
 
-            <p className="mt-3 text-xs text-paper/35">
-              Preserved VINSS product surface. Wiring follows after private chat.
+            <h2 className="mt-2 text-[17px] font-medium text-paper/72">
+              {tab ===
+              "group"
+                ? "Private Groups"
+                : tab ===
+                    "activity"
+                  ? "Room Activity"
+                  : "VINSS Loyalty"}
+            </h2>
+
+            <p className="mt-2 max-w-md text-[11px] leading-5 text-paper/30">
+              Surface preserved from VINSS. Canton workflow wiring comes after the private chat path is verified.
             </p>
           </section>
         )}
@@ -481,7 +345,6 @@ export default function RoomPage() {
 function mergeMessages(
   current:
     readonly CantonRoomMessage[],
-
   incoming:
     readonly CantonRoomMessage[],
 ):
@@ -513,6 +376,21 @@ function mergeMessages(
       left.sentAt -
       right.sentAt,
   );
+}
+
+function shortId(
+  value: string,
+): string {
+  if (
+    value.length <= 18
+  ) {
+    return value;
+  }
+
+  return `${value.slice(
+    0,
+    8,
+  )}…${value.slice(-6)}`;
 }
 
 function errorText(

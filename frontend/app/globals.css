@@ -147,3 +147,45 @@ body {
     animation: none;
   }
 }
+
+.vinss-home {
+  background:
+    radial-gradient(
+      circle at 72% 9%,
+      rgba(94,234,212,.045),
+      transparent 25rem
+    ),
+    linear-gradient(
+      180deg,
+      rgba(7,10,13,.97),
+      rgba(7,9,12,.995)
+    ),
+    #07090c;
+}
+
+.vinss-home::after {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(
+      rgba(94,234,212,.012)
+      1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(94,234,212,.01)
+      1px,
+      transparent 1px
+    );
+  background-size:
+    48px 48px;
+  mask-image:
+    linear-gradient(
+      to bottom,
+      black,
+      transparent 92%
+    );
+}
