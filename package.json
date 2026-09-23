@@ -5,8 +5,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "tsc",
-    "relay:start": "node dist/messaging/relay/main.js"
+    "build": "tsc"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

@@ -1,8 +1,5 @@
 module Vinss.Messaging where
 
--- Canton stores only encrypted/opaque messaging material.
--- Room title, roles, deal text, and plaintext messages belong inside MLS.
-
 template EncryptedChannel
   with
     channelId : Text
@@ -41,17 +38,14 @@ template EncryptedChannel
               members
 
 
--- MLS Welcome and Commit delivery.
---
--- The payload is serialized MLS bytes encoded for Ledger API transport.
--- Canton can see the involved Canton parties because this is not an
--- anonymity pool; it cannot read the MLS cryptographic payload itself.
 template MlsDelivery
   with
     deliveryId : Text
     channelId : Text
     sender : Party
     recipient : Party
+    senderInstallationId : Text
+    recipientInstallationId : Text
     kind : Text
     payloadB64 : Text
     createdAt : Time
@@ -62,6 +56,8 @@ template MlsDelivery
     ensure
       sender /= recipient
       &&
+      senderInstallationId /= recipientInstallationId
+      &&
       (
         kind == "welcome"
         ||
@@ -69,20 +65,12 @@ template MlsDelivery
       )
 
 
--- MLS encrypted application payload.
---
--- ciphertextB64 may contain:
--- - chat messages
--- - encrypted group state
--- - replies/reactions
--- - deal application messages
---
--- Canton never receives those values in plaintext.
 template EncryptedMessage
   with
     messageId : Text
     channelId : Text
     sender : Party
+    senderInstallationId : Text
     recipients : [Party]
     epoch : Int
     ciphertextB64 : Text
@@ -95,11 +83,6 @@ template EncryptedMessage
       not (sender `elem` recipients)
 
 
--- Pairwise KeyPackage request.
---
--- This avoids requiring a global trusted KeyPackage directory.
--- The requester and requested party are the only Canton parties
--- who need to see this request.
 template KeyPackageRequest
   with
     requestId : Text
@@ -117,6 +100,7 @@ template KeyPackageRequest
       with
         packageId : Text
         keyPackageB64 : Text
+        createdAt : Time
         expiresAt : Time
       controller recipient
       do
@@ -127,10 +111,10 @@ template KeyPackageRequest
           requester
           installationId
           keyPackageB64
+          createdAt
           expiresAt
 
 
--- KeyPackage is visible only to its owner and requester.
 template KeyPackageOffer
   with
     packageId : Text
@@ -139,6 +123,7 @@ template KeyPackageOffer
     requester : Party
     installationId : Text
     keyPackageB64 : Text
+    createdAt : Time
     expiresAt : Time
   where
     signatory owner
