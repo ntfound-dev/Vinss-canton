@@ -6,6 +6,10 @@ import type {
 } from "../types.js";
 import type { OpenMlsBridge } from "./bridge.js";
 import type {
+  OpenMlsCheckpointStore,
+} from "./checkpoint.js";
+
+import type {
   OpenMlsWasmLoader,
   OpenMlsWasmModule,
   WasmGroup,
@@ -42,7 +46,11 @@ export class BrowserOpenMlsBridge
     new Map<ConversationId, GroupState>();
 
   constructor(
-    private readonly loadWasm: OpenMlsWasmLoader,
+    private readonly loadWasm:
+      OpenMlsWasmLoader,
+
+    private readonly checkpointStore?:
+      OpenMlsCheckpointStore,
   ) {}
 
   async initialize(
@@ -50,22 +58,115 @@ export class BrowserOpenMlsBridge
   ): Promise<void> {
     this.disposeSession();
 
-    const module = await this.loadWasm();
-    assertCompatibleApi(module);
+    const module =
+      await this.loadWasm();
 
-    const provider = new module.Provider();
-
-    // MLS identity identifies this VINSS installation.
-    // Canton signing keys are deliberately not reused here.
-    const mlsIdentity = new module.Identity(
-      provider,
-      identityKey(identity),
+    assertCompatibleApi(
+      module,
     );
+
+    const provider =
+      new module.Provider();
+
+    const persisted =
+      await this.checkpointStore
+        ?.load(
+          identity.installationId,
+        );
 
     this.#module = module;
     this.#provider = provider;
-    this.#identity = mlsIdentity;
-    this.#activeIdentity = identity;
+    this.#activeIdentity =
+      identity;
+
+    try {
+      if (persisted) {
+        if (
+          persisted.identityKey !==
+          identityKey(identity)
+        ) {
+          throw new Error(
+            "Persisted MLS identity does not match active installation",
+          );
+        }
+
+        provider.import_storage(
+          persisted.providerStorage,
+        );
+
+        this.#identity =
+          module.Identity.load(
+            provider,
+            identityKey(identity),
+            persisted
+              .identityPublicKey,
+          );
+
+        for (
+          const persistedGroup
+          of persisted.groups
+        ) {
+          const conversationId =
+            persistedGroup
+              .snapshot
+              .metadata
+              .conversationId;
+
+          const group =
+            module.Group.load(
+              provider,
+              conversationId,
+            );
+
+          if (
+            group.epoch() !==
+            persistedGroup
+              .snapshot
+              .epoch
+          ) {
+            group.free();
+
+            throw new Error(
+              `Persisted MLS epoch mismatch: ${conversationId}`,
+            );
+          }
+
+          this.#groups.set(
+            conversationId,
+            {
+              group,
+
+              snapshot:
+                cloneSnapshot(
+                  persistedGroup
+                    .snapshot,
+                ),
+
+              hydrated:
+                persistedGroup
+                  .hydrated,
+            },
+          );
+        }
+
+        return;
+      }
+
+      this.#identity =
+        new module.Identity(
+          provider,
+          identityKey(identity),
+        );
+
+      await this.persistCheckpoint();
+    } catch (error) {
+      this.disposeSession();
+      throw error;
+    } finally {
+      persisted
+        ?.providerStorage
+        .fill(0);
+    }
   }
 
   async createKeyPackage(): Promise<Uint8Array> {
@@ -78,7 +179,14 @@ export class BrowserOpenMlsBridge
       identity.create_key_package(provider);
 
     try {
-      return copyBytes(keyPackage.to_bytes());
+      const bytes =
+        copyBytes(
+          keyPackage.to_bytes(),
+        );
+
+      await this.persistCheckpoint();
+
+      return bytes;
     } finally {
       keyPackage.free();
     }
@@ -137,6 +245,8 @@ export class BrowserOpenMlsBridge
         hydrated: true,
       },
     );
+
+    await this.persistCheckpoint();
 
     return cloneSnapshot(snapshot);
   }
@@ -306,6 +416,8 @@ export class BrowserOpenMlsBridge
 
     delete state.pendingChange;
 
+    await this.persistCheckpoint();
+
     return cloneSnapshot(
       state.snapshot,
     );
@@ -325,6 +437,8 @@ export class BrowserOpenMlsBridge
     );
 
     delete state.pendingChange;
+
+    await this.persistCheckpoint();
   }
 
   async joinFromWelcome(input: {
@@ -377,6 +491,8 @@ export class BrowserOpenMlsBridge
       },
     );
 
+    await this.persistCheckpoint();
+
     return cloneSnapshot(
       snapshot,
     );
@@ -415,6 +531,8 @@ export class BrowserOpenMlsBridge
           state.group.epoch(),
       };
 
+      await this.persistCheckpoint();
+
       return cloneSnapshot(
         state.snapshot,
       );
@@ -449,6 +567,8 @@ export class BrowserOpenMlsBridge
 
     state.hydrated = true;
 
+    await this.persistCheckpoint();
+
     return cloneSnapshot(
       state.snapshot,
     );
@@ -471,15 +591,19 @@ export class BrowserOpenMlsBridge
 
     const epoch = state.group.epoch();
 
-    const ciphertext = state.group.encrypt(
-      provider,
-      identity,
-      input.plaintext,
-    );
+    const ciphertext =
+      state.group.encrypt(
+        provider,
+        identity,
+        input.plaintext,
+      );
+
+    await this.persistCheckpoint();
 
     return {
       epoch,
-      ciphertext: copyBytes(ciphertext),
+      ciphertext:
+        copyBytes(ciphertext),
     };
   }
 
@@ -508,11 +632,17 @@ export class BrowserOpenMlsBridge
         );
       }
 
-      return {
-        epoch: result.epoch,
-        plaintext: copyBytes(
+      const plaintext =
+        copyBytes(
           result.payload,
-        ),
+        );
+
+      await this.persistCheckpoint();
+
+      return {
+        epoch:
+          result.epoch,
+        plaintext,
       };
     } finally {
       result.free();
@@ -536,6 +666,66 @@ export class BrowserOpenMlsBridge
     return cloneSnapshot(
       state.snapshot,
     );
+  }
+
+  private async persistCheckpoint():
+    Promise<void> {
+    if (!this.checkpointStore) {
+      return;
+    }
+
+    const {
+      provider,
+      identity,
+      activeIdentity,
+    } = this.requireSession();
+
+    const providerStorage =
+      copyBytes(
+        provider.export_storage(),
+      );
+
+    try {
+      await this.checkpointStore
+        .save(
+          activeIdentity
+            .installationId,
+
+          {
+            version: 1,
+
+            identityKey:
+              identityKey(
+                activeIdentity,
+              ),
+
+            identityPublicKey:
+              copyBytes(
+                identity
+                  .public_key(),
+              ),
+
+            providerStorage,
+
+            groups: [
+              ...this.#groups
+                .values(),
+            ].map(
+              (state) => ({
+                snapshot:
+                  cloneSnapshot(
+                    state.snapshot,
+                  ),
+
+                hydrated:
+                  state.hydrated,
+              }),
+            ),
+          },
+        );
+    } finally {
+      providerStorage.fill(0);
+    }
   }
 
   private requireSession(): {
