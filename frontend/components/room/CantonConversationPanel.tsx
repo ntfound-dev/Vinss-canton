@@ -6,12 +6,29 @@ import type {
 
 import type {
   CantonRoomMessage,
+  CantonRoomOffer,
+  CantonRoomOfferInput,
   CantonRoomStatus,
 } from "@/lib/canton-room-runtime";
 
 interface Props {
   messages:
     readonly CantonRoomMessage[];
+  offers:
+    readonly CantonRoomOffer[];
+  onCreateOffer(
+    input: CantonRoomOfferInput,
+  ): Promise<boolean>;
+  onAcceptOffer(
+    offer: CantonRoomOffer,
+  ):
+    | void
+    | Promise<void>;
+  onRejectOffer(
+    offer: CantonRoomOffer,
+  ):
+    | void
+    | Promise<void>;
   draft: string;
   busy: boolean;
   configured: boolean;

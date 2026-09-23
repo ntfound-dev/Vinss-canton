@@ -62,6 +62,7 @@ export type MessageContent =
       dealId: string;
       canonicalTerms: string;
       termsHash: string;
+      cantonContractId: string;
     }
   | {
       type: "deal_action";

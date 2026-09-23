@@ -92,3 +92,83 @@ describe(
     );
   },
 );
+
+describe(
+  "VINSS encrypted deal proposal payload",
+  () => {
+    it(
+      "round-trips the private proposal with its Canton contract locator",
+      () => {
+        const encoded =
+          encodeSecurePayload({
+            kind: "message",
+
+            message: {
+              id: "offer-message-1",
+              conversationId: "deal-room-1",
+              senderUserId: "alice",
+              senderInstallationId:
+                "alice-phone",
+              sentAt: 10,
+
+              content: {
+                type:
+                  "deal_proposal",
+                dealId:
+                  "deal-1",
+                canonicalTerms:
+                  '{"amount":"100","instrumentId":"USD","terms":"Private work","expiresAt":"2026-09-25T00:00:00.000Z"}',
+                termsHash:
+                  "abc123",
+                cantonContractId:
+                  "contract-1",
+              },
+            },
+          });
+
+        const decoded =
+          decodeSecurePayload(
+            encoded,
+          );
+
+        expect(
+          decoded.kind,
+        ).toBe("message");
+
+        if (
+          decoded.kind !==
+          "message"
+        ) {
+          throw new Error(
+            "Unexpected payload kind",
+          );
+        }
+
+        expect(
+          decoded.message
+            .content.type,
+        ).toBe(
+          "deal_proposal",
+        );
+
+        if (
+          decoded.message
+            .content.type !==
+          "deal_proposal"
+        ) {
+          throw new Error(
+            "Unexpected content type",
+          );
+        }
+
+        expect(
+          decoded.message
+            .content
+            .cantonContractId,
+        ).toBe(
+          "contract-1",
+        );
+      },
+    );
+  },
+);

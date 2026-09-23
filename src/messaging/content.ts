@@ -303,6 +303,9 @@ function isMessageContent(
           .canonicalTerms ===
           "string" &&
         typeof value.termsHash ===
+          "string" &&
+        typeof value
+          .cantonContractId ===
           "string"
       );
 

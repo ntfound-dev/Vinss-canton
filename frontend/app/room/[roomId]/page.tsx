@@ -12,7 +12,10 @@ import {
 
 import {
   CantonRoomRuntime,
+  type CantonRoomDealAction,
   type CantonRoomMessage,
+  type CantonRoomOffer,
+  type CantonRoomOfferInput,
   type CantonRoomStatus,
 } from "@/lib/canton-room-runtime";
 
@@ -77,6 +80,12 @@ export default function RoomPage() {
       CantonRoomMessage[]
     >([]);
 
+
+  const [offers, setOffers] =
+    useState<
+      CantonRoomOffer[]
+    >([]);
+
   const [busy, setBusy] =
     useState(false);
 
@@ -131,6 +140,42 @@ export default function RoomPage() {
                 mergeMessages(
                   current,
                   incoming,
+                ),
+            );
+          },
+
+          onOffers(
+            incoming,
+          ) {
+            if (
+              disposed
+            ) {
+              return;
+            }
+
+            setOffers(
+              (current) =>
+                mergeOffers(
+                  current,
+                  incoming,
+                ),
+            );
+          },
+
+          onDealActions(
+            actions,
+          ) {
+            if (
+              disposed
+            ) {
+              return;
+            }
+
+            setOffers(
+              (current) =>
+                applyDealActions(
+                  current,
+                  actions,
                 ),
             );
           },
@@ -235,6 +280,127 @@ export default function RoomPage() {
     }
   }
 
+  async function createOffer(
+    input:
+      CantonRoomOfferInput,
+  ): Promise<boolean> {
+    if (
+      !runtime ||
+      status !== "ready"
+    ) {
+      return false;
+    }
+
+    setBusy(true);
+    setError(null);
+
+    try {
+      const offer =
+        await runtime
+          .createOffer(
+            input,
+          );
+
+      setOffers(
+        (current) =>
+          mergeOffers(
+            current,
+            [offer],
+          ),
+      );
+
+      return true;
+    } catch (
+      cause
+    ) {
+      setError(
+        errorText(
+          cause,
+        ),
+      );
+
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function acceptOffer(
+    offer:
+      CantonRoomOffer,
+  ): Promise<void> {
+    if (!runtime) {
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+
+    try {
+      const updated =
+        await runtime
+          .acceptOffer(
+            offer,
+          );
+
+      setOffers(
+        (current) =>
+          mergeOffers(
+            current,
+            [updated],
+          ),
+      );
+    } catch (
+      cause
+    ) {
+      setError(
+        errorText(
+          cause,
+        ),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rejectOffer(
+    offer:
+      CantonRoomOffer,
+  ): Promise<void> {
+    if (!runtime) {
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+
+    try {
+      const updated =
+        await runtime
+          .rejectOffer(
+            offer,
+          );
+
+      setOffers(
+        (current) =>
+          mergeOffers(
+            current,
+            [updated],
+          ),
+      );
+    } catch (
+      cause
+    ) {
+      setError(
+        errorText(
+          cause,
+        ),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const configured =
     Boolean(
       peerParty &&
@@ -302,6 +468,9 @@ export default function RoomPage() {
             messages={
               messages
             }
+            offers={
+              offers
+            }
             draft={draft}
             busy={busy}
             configured={
@@ -315,6 +484,15 @@ export default function RoomPage() {
               setDraft
             }
             onSend={send}
+            onCreateOffer={
+              createOffer
+            }
+            onAcceptOffer={
+              acceptOffer
+            }
+            onRejectOffer={
+              rejectOffer
+            }
           />
         ) : (
           <section className="min-h-[520px] rounded-2xl border border-wire/70 bg-vault/25 p-5">
@@ -375,6 +553,109 @@ function mergeMessages(
     (left, right) =>
       left.sentAt -
       right.sentAt,
+  );
+}
+
+function mergeOffers(
+  current:
+    readonly CantonRoomOffer[],
+  incoming:
+    readonly CantonRoomOffer[],
+):
+  CantonRoomOffer[] {
+  const byId =
+    new Map(
+      current.map(
+        (offer) => [
+          offer.dealId,
+          offer,
+        ],
+      ),
+    );
+
+  for (
+    const offer
+    of incoming
+  ) {
+    const existing =
+      byId.get(
+        offer.dealId,
+      );
+
+    byId.set(
+      offer.dealId,
+      existing
+        ? {
+            ...existing,
+            ...offer,
+          }
+        : offer,
+    );
+  }
+
+  return [
+    ...byId.values(),
+  ].sort(
+    (left, right) =>
+      left.sentAt -
+      right.sentAt,
+  );
+}
+
+function applyDealActions(
+  current:
+    readonly CantonRoomOffer[],
+  actions:
+    readonly CantonRoomDealAction[],
+):
+  CantonRoomOffer[] {
+  const latest =
+    new Map(
+      actions.map(
+        (action) => [
+          action.dealId,
+          action,
+        ],
+      ),
+    );
+
+  return current.map(
+    (offer) => {
+      const action =
+        latest.get(
+          offer.dealId,
+        );
+
+      if (!action) {
+        return offer;
+      }
+
+      if (
+        action.action ===
+        "accept"
+      ) {
+        return {
+          ...offer,
+          status:
+            "accepted" as const,
+
+          ...(action
+            .cantonContractId
+            ? {
+                agreementContractId:
+                  action
+                    .cantonContractId,
+              }
+            : {}),
+        };
+      }
+
+      return {
+        ...offer,
+        status:
+          "rejected" as const,
+      };
+    },
   );
 }
 

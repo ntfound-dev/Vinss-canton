@@ -6,6 +6,14 @@ import {
 } from "../../src/canton/http-ledger-client.js";
 
 import {
+  HttpCantonOfferProvider,
+} from "../../src/canton/http-offer-provider.js";
+
+import {
+  isCantonDealTemplate,
+} from "../../src/canton/deal-templates.js";
+
+import {
   CantonWebSocketUpdateStream,
 } from "../../src/canton/websocket-update-stream.js";
 
@@ -64,6 +72,42 @@ export interface CantonRoomMessage {
   own: boolean;
 }
 
+
+export interface CantonRoomOfferInput {
+  amount: string;
+  instrumentId: string;
+  terms: string;
+  expiresInHours?: number;
+}
+
+export interface CantonRoomOffer {
+  dealId: string;
+  contractId: string;
+  sentAt: number;
+  seller: string;
+  buyer: string;
+  amount: string;
+  instrumentId: string;
+  terms: string;
+  termsHash: string;
+  expiresAt: string;
+  own: boolean;
+  status:
+    | "pending"
+    | "accepted"
+    | "rejected";
+  agreementContractId?: string;
+}
+
+export interface CantonRoomDealAction {
+  dealId: string;
+  action:
+    | "accept"
+    | "reject";
+  sentAt: number;
+  cantonContractId?: string;
+}
+
 export interface CantonRoomInput {
   conversationId: string;
 
@@ -82,6 +126,17 @@ export interface CantonRoomInput {
   onMessages(
     messages:
       readonly CantonRoomMessage[],
+  ): void;
+
+
+  onOffers?(
+    offers:
+      readonly CantonRoomOffer[],
+  ): void;
+
+  onDealActions?(
+    actions:
+      readonly CantonRoomDealAction[],
   ): void;
 
   onError(
@@ -137,6 +192,15 @@ export class CantonRoomRuntime {
 
     private readonly live:
       CantonLiveMessagingSession,
+
+    private readonly ledger:
+      HttpCantonLedgerClient,
+
+    private readonly offerProvider:
+      HttpCantonOfferProvider,
+
+    private readonly activeParty:
+      string,
   ) {}
 
   static async connect(
@@ -320,6 +384,11 @@ export class CantonRoomRuntime {
         identity,
         peerMember,
         live,
+        ledger,
+        new HttpCantonOfferProvider(
+          ledger,
+        ),
+        directory.activeParty(),
       );
 
     await runtime
@@ -327,7 +396,7 @@ export class CantonRoomRuntime {
 
     runtime.#subscription =
       await live.start({
-        onMessages(
+        async onMessages(
           conversationId,
           messages,
         ) {
@@ -342,9 +411,7 @@ export class CantonRoomRuntime {
           const visible =
             messages
               .map(
-                (
-                  message,
-                ) =>
+                (message) =>
                   toRoomMessage(
                     message,
                     installationId,
@@ -367,6 +434,64 @@ export class CantonRoomRuntime {
             input.onMessages(
               visible,
             );
+          }
+
+          const offers:
+            CantonRoomOffer[] =
+            [];
+
+          const actions:
+            CantonRoomDealAction[] =
+            [];
+
+          for (
+            const message
+            of messages
+          ) {
+            const offer =
+              await toRoomOffer(
+                message,
+                installationId,
+                directory
+                  .activeParty(),
+                input.peerParty,
+              );
+
+            if (offer) {
+              offers.push(
+                offer,
+              );
+            }
+
+            const action =
+              toRoomDealAction(
+                message,
+              );
+
+            if (action) {
+              actions.push(
+                action,
+              );
+            }
+          }
+
+          if (
+            offers.length >
+            0
+          ) {
+            input.onOffers?.(
+              offers,
+            );
+          }
+
+          if (
+            actions.length >
+            0
+          ) {
+            input
+              .onDealActions?.(
+                actions,
+              );
           }
         },
 
@@ -468,6 +593,382 @@ export class CantonRoomRuntime {
       own:
         true,
     };
+  }
+
+  async createOffer(
+    input:
+      CantonRoomOfferInput,
+  ): Promise<
+    CantonRoomOffer
+  > {
+    const amount =
+      input.amount.trim();
+
+    const instrumentId =
+      input.instrumentId
+        .trim()
+        .toUpperCase();
+
+    const terms =
+      input.terms.trim();
+
+    if (
+      !/^\d+(?:\.\d+)?$/.test(
+        amount,
+      ) ||
+      Number(amount) <= 0
+    ) {
+      throw new Error(
+        "Offer amount must be greater than zero",
+      );
+    }
+
+    if (!instrumentId) {
+      throw new Error(
+        "Offer instrument is required",
+      );
+    }
+
+    if (!terms) {
+      throw new Error(
+        "Offer terms are required",
+      );
+    }
+
+    const expiresInHours =
+      Math.min(
+        168,
+        Math.max(
+          1,
+          Math.trunc(
+            input
+              .expiresInHours ??
+              24,
+          ),
+        ),
+      );
+
+    const expiresAt =
+      new Date(
+        Date.now() +
+          expiresInHours *
+            60 *
+            60 *
+            1000,
+      ).toISOString();
+
+    const canonicalTerms =
+      JSON.stringify({
+        amount,
+        instrumentId,
+        terms,
+        expiresAt,
+      });
+
+    const termsHash =
+      await sha256Hex(
+        canonicalTerms,
+      );
+
+    const dealId =
+      crypto.randomUUID();
+
+    const contractId =
+      await this.offerProvider
+        .createProposal(
+          this.activeParty,
+          {
+            dealId,
+
+            conversationId:
+              this.input
+                .conversationId,
+
+            seller:
+              this.activeParty,
+
+            buyer:
+              this.input
+                .peerParty,
+
+            termsHash,
+            amount,
+            instrumentId,
+            expiresAt,
+          },
+        );
+
+    const sentAt =
+      Date.now();
+
+    const message:
+      PlainMessage = {
+        id:
+          crypto.randomUUID(),
+
+        conversationId:
+          this.input
+            .conversationId,
+
+        senderUserId:
+          this.identity
+            .userId,
+
+        senderInstallationId:
+          this.identity
+            .installationId,
+
+        sentAt,
+
+        content: {
+          type:
+            "deal_proposal",
+
+          dealId,
+          canonicalTerms,
+          termsHash,
+          cantonContractId:
+            contractId,
+        },
+      };
+
+    await this.provider
+      .send(message);
+
+    return {
+      dealId,
+      contractId,
+      sentAt,
+
+      seller:
+        this.activeParty,
+
+      buyer:
+        this.input
+          .peerParty,
+
+      amount,
+      instrumentId,
+      terms,
+      termsHash,
+      expiresAt,
+
+      own:
+        true,
+
+      status:
+        "pending",
+    };
+  }
+
+  async acceptOffer(
+    offer:
+      CantonRoomOffer,
+  ): Promise<
+    CantonRoomOffer
+  > {
+    if (offer.own) {
+      throw new Error(
+        "You cannot accept your own offer",
+      );
+    }
+
+    await this
+      .verifyOfferContract(
+        offer,
+      );
+
+    const agreement =
+      await this.offerProvider
+        .acceptProposal(
+          this.activeParty,
+          offer.contractId,
+        );
+
+    await this
+      .sendDealAction(
+        offer.dealId,
+        "accept",
+        agreement.contractId,
+      );
+
+    return {
+      ...offer,
+
+      status:
+        "accepted",
+
+      agreementContractId:
+        agreement.contractId,
+    };
+  }
+
+  async rejectOffer(
+    offer:
+      CantonRoomOffer,
+  ): Promise<
+    CantonRoomOffer
+  > {
+    if (offer.own) {
+      throw new Error(
+        "You cannot reject your own offer",
+      );
+    }
+
+    await this
+      .verifyOfferContract(
+        offer,
+      );
+
+    await this.offerProvider
+      .rejectProposal(
+        this.activeParty,
+        offer.contractId,
+      );
+
+    await this
+      .sendDealAction(
+        offer.dealId,
+        "reject",
+      );
+
+    return {
+      ...offer,
+
+      status:
+        "rejected",
+    };
+  }
+
+  private async sendDealAction(
+    dealId: string,
+    action:
+      | "accept"
+      | "reject",
+    cantonContractId?:
+      string,
+  ): Promise<void> {
+    const message:
+      PlainMessage = {
+        id:
+          crypto.randomUUID(),
+
+        conversationId:
+          this.input
+            .conversationId,
+
+        senderUserId:
+          this.identity
+            .userId,
+
+        senderInstallationId:
+          this.identity
+            .installationId,
+
+        sentAt:
+          Date.now(),
+
+        content: {
+          type:
+            "deal_action",
+
+          dealId,
+          action,
+
+          ...(cantonContractId
+            ? {
+                cantonContractId,
+              }
+            : {}),
+        },
+      };
+
+    await this.provider
+      .send(message);
+  }
+
+  private async verifyOfferContract(
+    offer:
+      CantonRoomOffer,
+  ): Promise<void> {
+    const contracts =
+      await this.ledger
+        .queryActiveContracts(
+          this.activeParty,
+        );
+
+    const contract =
+      contracts.find(
+        (candidate) =>
+          candidate
+            .contractId ===
+            offer
+              .contractId &&
+          isCantonDealTemplate(
+            candidate
+              .templateId,
+            "DealProposal",
+          ),
+      );
+
+    if (!contract) {
+      throw new Error(
+        "Canton offer is no longer active",
+      );
+    }
+
+    const args =
+      contract
+        .createArgument;
+
+    const expected = {
+      dealId:
+        offer.dealId,
+
+      conversationId:
+        this.input
+          .conversationId,
+
+      seller:
+        offer.seller,
+
+      buyer:
+        offer.buyer,
+
+      termsHash:
+        offer.termsHash,
+
+      amount:
+        offer.amount,
+
+      instrumentId:
+        offer.instrumentId,
+
+      expiresAt:
+        offer.expiresAt,
+    };
+
+    for (
+      const [
+        key,
+        value,
+      ]
+      of Object.entries(
+        expected,
+      )
+    ) {
+      if (
+        readDealField(
+          args,
+          key,
+        ) !==
+        value
+      ) {
+        throw new Error(
+          "Encrypted offer details do not match the Canton proposal",
+        );
+      }
+    }
   }
 
   close(): void {
@@ -673,6 +1174,253 @@ function toRoomMessage(
         .senderInstallationId ===
       localInstallationId,
   };
+}
+
+async function toRoomOffer(
+  message:
+    PlainMessage,
+
+  localInstallationId:
+    string,
+
+  activeParty:
+    string,
+
+  peerParty:
+    string,
+):
+  Promise<
+    CantonRoomOffer |
+    undefined
+  > {
+  if (
+    message.content.type !==
+      "deal_proposal"
+  ) {
+    return undefined;
+  }
+
+  const content =
+    message.content;
+
+  const actualHash =
+    await sha256Hex(
+      content.canonicalTerms,
+    );
+
+  if (
+    actualHash !==
+    content.termsHash
+  ) {
+    throw new Error(
+      "Encrypted VINSS offer terms hash mismatch",
+    );
+  }
+
+  const parsed =
+    parseCanonicalTerms(
+      content
+        .canonicalTerms,
+    );
+
+  const own =
+    message
+      .senderInstallationId ===
+    localInstallationId;
+
+  return {
+    dealId:
+      content.dealId,
+
+    contractId:
+      content
+        .cantonContractId,
+
+    sentAt:
+      message.sentAt,
+
+    seller:
+      own
+        ? activeParty
+        : peerParty,
+
+    buyer:
+      own
+        ? peerParty
+        : activeParty,
+
+    amount:
+      parsed.amount,
+
+    instrumentId:
+      parsed.instrumentId,
+
+    terms:
+      parsed.terms,
+
+    termsHash:
+      content.termsHash,
+
+    expiresAt:
+      parsed.expiresAt,
+
+    own,
+
+    status:
+      "pending",
+  };
+}
+
+function toRoomDealAction(
+  message:
+    PlainMessage,
+):
+  | CantonRoomDealAction
+  | undefined {
+  if (
+    message.content.type !==
+      "deal_action" ||
+    (
+      message.content.action !==
+        "accept" &&
+      message.content.action !==
+        "reject"
+    )
+  ) {
+    return undefined;
+  }
+
+  return {
+    dealId:
+      message
+        .content
+        .dealId,
+
+    action:
+      message
+        .content
+        .action,
+
+    sentAt:
+      message.sentAt,
+
+    ...(message
+      .content
+      .cantonContractId
+      ? {
+          cantonContractId:
+            message
+              .content
+              .cantonContractId,
+        }
+      : {}),
+  };
+}
+
+function parseCanonicalTerms(
+  value: string,
+): {
+  amount: string;
+  instrumentId: string;
+  terms: string;
+  expiresAt: string;
+} {
+  const parsed:
+    unknown =
+    JSON.parse(value);
+
+  if (
+    !isRecord(parsed) ||
+    typeof parsed.amount !==
+      "string" ||
+    typeof parsed
+      .instrumentId !==
+      "string" ||
+    typeof parsed.terms !==
+      "string" ||
+    typeof parsed.expiresAt !==
+      "string"
+  ) {
+    throw new Error(
+      "Invalid encrypted VINSS offer terms",
+    );
+  }
+
+  return {
+    amount:
+      parsed.amount,
+
+    instrumentId:
+      parsed.instrumentId,
+
+    terms:
+      parsed.terms,
+
+    expiresAt:
+      parsed.expiresAt,
+  };
+}
+
+async function sha256Hex(
+  value: string,
+): Promise<string> {
+  const digest =
+    new Uint8Array(
+      await crypto.subtle
+        .digest(
+          "SHA-256",
+          new TextEncoder()
+            .encode(value),
+        ),
+    );
+
+  return [
+    ...digest,
+  ]
+    .map(
+      (byte) =>
+        byte
+          .toString(16)
+          .padStart(
+            2,
+            "0",
+          ),
+    )
+    .join("");
+}
+
+function readDealField(
+  value:
+    Record<string, unknown>,
+  key: string,
+): string {
+  const result =
+    value[key];
+
+  if (
+    typeof result !==
+      "string"
+  ) {
+    throw new Error(
+      `Invalid Canton offer field: ${key}`,
+    );
+  }
+
+  return result;
+}
+
+function isRecord(
+  value: unknown,
+): value is Record<
+  string,
+  unknown
+> {
+  return (
+    typeof value ===
+      "object" &&
+    value !== null &&
+    !Array.isArray(value)
+  );
 }
 
 function isMissingGroup(
