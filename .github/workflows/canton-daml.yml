@@ -1,0 +1,36 @@
+name: Canton Daml
+
+on:
+  push:
+    paths:
+      - "daml/**"
+      - "daml.yaml"
+      - ".github/workflows/canton-daml.yml"
+  pull_request:
+    paths:
+      - "daml/**"
+      - "daml.yaml"
+      - ".github/workflows/canton-daml.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Digital Asset package manager
+        shell: bash
+        run: |
+          curl -fsSL \
+            https://get.digitalasset.com/install/install.sh \
+            | sh
+
+          echo "$HOME/.dpm/bin" >> "$GITHUB_PATH"
+
+      - name: Install Daml SDK
+        run: dpm install 3.5.10
+
+      - name: Build Canton Daml package
+        run: dpm build
