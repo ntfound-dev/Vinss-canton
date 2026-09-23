@@ -238,12 +238,14 @@ export class HttpCantonLedgerClient
                 activeAtOffset,
               ),
 
-            verbose: false,
+            eventFormat: {
+              filtersByParty: {
+                [party]:
+                  wildcardFilters(),
+              },
 
-            filter:
-              partyWildcardFilter(
-                party,
-              ),
+              verbose: false,
+            },
           }),
         },
       );
@@ -434,17 +436,6 @@ export class HttpCantonLedgerClient
       text,
     ) as T;
   }
-}
-
-function partyWildcardFilter(
-  party: CantonPartyId,
-): Record<string, unknown> {
-  return {
-    filtersByParty: {
-      [party]:
-        wildcardFilters(),
-    },
-  };
 }
 
 function wildcardFilters():

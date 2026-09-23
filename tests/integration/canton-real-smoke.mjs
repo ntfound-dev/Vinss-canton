@@ -1,0 +1,497 @@
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+
+const BASE =
+  process.env.CANTON_BASE_URL ??
+  "http://127.0.0.1:7575";
+
+const PACKAGE =
+  "vinss-canton-messaging";
+
+const MODULE =
+  "Vinss.Messaging";
+
+async function request(
+  path,
+  init = {},
+) {
+  const response =
+    await fetch(
+      `${BASE}${path}`,
+      {
+        ...init,
+
+        headers: {
+          accept:
+            "application/json",
+
+          ...(init.body
+            ? {
+                "content-type":
+                  "application/json",
+              }
+            : {}),
+
+          ...init.headers,
+        },
+      },
+    );
+
+  const text =
+    await response.text();
+
+  if (!response.ok) {
+    throw new Error(
+      `${path} -> ${response.status}: ${text}`,
+    );
+  }
+
+  return text
+    ? JSON.parse(text)
+    : undefined;
+}
+
+async function allocateParty(
+  hint,
+) {
+  const result =
+    await request(
+      "/v2/parties",
+      {
+        method: "POST",
+
+        body: JSON.stringify({
+          partyIdHint: hint,
+          identityProviderId: "",
+        }),
+      },
+    );
+
+  const party =
+    result?.partyDetails?.party;
+
+  assert.equal(
+    typeof party,
+    "string",
+    `party allocation failed: ${hint}`,
+  );
+
+  return party;
+}
+
+async function ledgerEnd() {
+  const result =
+    await request(
+      "/v2/state/ledger-end",
+    );
+
+  return Number(
+    result?.offset ?? 0,
+  );
+}
+
+function wildcard() {
+  return {
+    cumulative: [
+      {
+        identifierFilter: {
+          WildcardFilter: {
+            value: {
+              includeCreatedEventBlob:
+                false,
+            },
+          },
+        },
+      },
+    ],
+  };
+}
+
+async function activeContracts(
+  party,
+  offset,
+) {
+  return request(
+    "/v2/state/active-contracts",
+    {
+      method: "POST",
+
+      body: JSON.stringify({
+        activeAtOffset:
+          offset,
+
+        eventFormat: {
+          filtersByParty: {
+            [party]:
+              wildcard(),
+          },
+
+          verbose: false,
+        },
+      }),
+    },
+  );
+}
+
+function collectCreatedEvents(
+  value,
+  output = [],
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return output;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectCreatedEvents(
+        item,
+        output,
+      );
+    }
+
+    return output;
+  }
+
+  if (
+    typeof value !==
+      "object"
+  ) {
+    return output;
+  }
+
+  if (
+    value.createdEvent &&
+    typeof value.createdEvent ===
+      "object"
+  ) {
+    output.push(
+      value.createdEvent,
+    );
+  }
+
+  for (
+    const nested
+    of Object.values(value)
+  ) {
+    collectCreatedEvents(
+      nested,
+      output,
+    );
+  }
+
+  return output;
+}
+
+async function submitCreates(
+  actingParty,
+  creates,
+) {
+  return request(
+    "/v2/commands/submit-and-wait",
+    {
+      method: "POST",
+
+      body: JSON.stringify({
+        userId:
+          "ledger-api-user",
+
+        commandId:
+          `vinss-${crypto.randomUUID()}`,
+
+        actAs: [
+          actingParty,
+        ],
+
+        readAs: [
+          actingParty,
+        ],
+
+        commands:
+          creates.map(
+            ({
+              templateId,
+              createArguments,
+            }) => ({
+              CreateCommand: {
+                templateId,
+                createArguments,
+              },
+            }),
+          ),
+      }),
+    },
+  );
+}
+
+const alice =
+  await allocateParty(
+    `Alice-${crypto.randomUUID().slice(0, 8)}`,
+  );
+
+const bob =
+  await allocateParty(
+    `Bob-${crypto.randomUUID().slice(0, 8)}`,
+  );
+
+const charlie =
+  await allocateParty(
+    `Charlie-${crypto.randomUUID().slice(0, 8)}`,
+  );
+
+console.log(
+  "Alice:",
+  alice,
+);
+
+console.log(
+  "Bob:",
+  bob,
+);
+
+console.log(
+  "Charlie:",
+  charlie,
+);
+
+const channelId =
+  `deal-${crypto.randomUUID()}`;
+
+const deliveryId =
+  crypto.randomUUID();
+
+const opaqueWelcome =
+  Buffer.from(
+    "VINSS MLS opaque Welcome bytes",
+  ).toString("base64");
+
+const deliveryResult =
+  await submitCreates(
+    alice,
+    [
+      {
+        templateId:
+          `#${PACKAGE}:${MODULE}:MlsDelivery`,
+
+        createArguments: {
+          deliveryId,
+
+          channelId,
+
+          sender:
+            alice,
+
+          recipient:
+            bob,
+
+          senderInstallationId:
+            "alice-browser",
+
+          recipientInstallationId:
+            "bob-browser",
+
+          kind:
+            "welcome",
+
+          payloadB64:
+            opaqueWelcome,
+
+          createdAt:
+            new Date()
+              .toISOString(),
+        },
+      },
+    ],
+  );
+
+const deliveryOffset =
+  Number(
+    deliveryResult
+      .completionOffset,
+  );
+
+assert.ok(
+  deliveryOffset > 0,
+);
+
+const bobAcs =
+  await activeContracts(
+    bob,
+    deliveryOffset,
+  );
+
+const bobEvents =
+  collectCreatedEvents(
+    bobAcs,
+  );
+
+const bobDelivery =
+  bobEvents.find(
+    (event) =>
+      event
+        ?.createArgument
+        ?.deliveryId ===
+      deliveryId,
+  );
+
+assert.ok(
+  bobDelivery,
+  "Bob cannot see MLS delivery",
+);
+
+assert.equal(
+  bobDelivery
+    .createArgument
+    .payloadB64,
+  opaqueWelcome,
+);
+
+const charlieAcs =
+  await activeContracts(
+    charlie,
+    deliveryOffset,
+  );
+
+const charlieEvents =
+  collectCreatedEvents(
+    charlieAcs,
+  );
+
+assert.equal(
+  charlieEvents.some(
+    (event) =>
+      event
+        ?.createArgument
+        ?.deliveryId ===
+      deliveryId,
+  ),
+  false,
+  "Unrelated Charlie can see private MLS delivery",
+);
+
+const messageId =
+  crypto.randomUUID();
+
+const ciphertext =
+  Buffer.from(
+    "this-is-opaque-mls-ciphertext",
+  ).toString("base64");
+
+const messageResult =
+  await submitCreates(
+    alice,
+    [
+      {
+        templateId:
+          `#${PACKAGE}:${MODULE}:EncryptedMessage`,
+
+        createArguments: {
+          messageId,
+
+          channelId,
+
+          sender:
+            alice,
+
+          senderInstallationId:
+            "alice-browser",
+
+          recipients: [
+            bob,
+          ],
+
+          epoch:
+            "7",
+
+          ciphertextB64:
+            ciphertext,
+
+          createdAt:
+            new Date()
+              .toISOString(),
+        },
+      },
+    ],
+  );
+
+const messageOffset =
+  Number(
+    messageResult
+      .completionOffset,
+  );
+
+const bobMessageAcs =
+  await activeContracts(
+    bob,
+    messageOffset,
+  );
+
+const bobMessageEvents =
+  collectCreatedEvents(
+    bobMessageAcs,
+  );
+
+const encryptedMessage =
+  bobMessageEvents.find(
+    (event) =>
+      event
+        ?.createArgument
+        ?.messageId ===
+      messageId,
+  );
+
+assert.ok(
+  encryptedMessage,
+  "Bob cannot see encrypted message",
+);
+
+assert.equal(
+  encryptedMessage
+    .createArgument
+    .ciphertextB64,
+  ciphertext,
+);
+
+const charlieMessageAcs =
+  await activeContracts(
+    charlie,
+    messageOffset,
+  );
+
+const charlieMessageEvents =
+  collectCreatedEvents(
+    charlieMessageAcs,
+  );
+
+assert.equal(
+  charlieMessageEvents.some(
+    (event) =>
+      event
+        ?.createArgument
+        ?.messageId ===
+      messageId,
+  ),
+  false,
+  "Unrelated Charlie can see encrypted message",
+);
+
+const end =
+  await ledgerEnd();
+
+assert.ok(
+  end >= messageOffset,
+);
+
+console.log(
+  "REAL CANTON MLS DELIVERY: PASS",
+);
+
+console.log(
+  "REAL CANTON ENCRYPTED MESSAGE: PASS",
+);
+
+console.log(
+  "UNRELATED PARTY VISIBILITY: BLOCKED",
+);
