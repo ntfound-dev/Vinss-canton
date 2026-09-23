@@ -5,6 +5,19 @@ import type {
   MessagingIdentity,
 } from "../types.js";
 
+import type {
+  OpenMlsPendingOutboundCommit,
+} from "./checkpoint.js";
+
+export interface OpenMlsPendingCommitRecovery
+  extends OpenMlsPendingOutboundCommit {
+  conversationId:
+    ConversationId;
+
+  snapshot:
+    GroupSnapshot;
+}
+
 export interface OpenMlsBridge {
   initialize(
     identity: MessagingIdentity,
@@ -72,6 +85,21 @@ export interface OpenMlsBridge {
   hasProcessedHandshake?(
     handshakeId: string,
   ): Promise<boolean>;
+
+  listPendingOutboundCommits?():
+    Promise<
+      readonly OpenMlsPendingCommitRecovery[]
+    >;
+
+  listGroupsNeedingStatePublish?():
+    Promise<
+      readonly GroupSnapshot[]
+    >;
+
+  markGroupStatePublished?(
+    conversationId:
+      ConversationId,
+  ): Promise<void>;
 
   applyGroupSnapshot(
     snapshot: GroupSnapshot,

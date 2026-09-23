@@ -12,6 +12,7 @@ export interface KeyPackageEnvelope {
 }
 
 interface MlsHandshakeBase {
+  id?: string;
   conversationId: ConversationId;
   senderInstallationId: InstallationId;
   recipientInstallationId: InstallationId;

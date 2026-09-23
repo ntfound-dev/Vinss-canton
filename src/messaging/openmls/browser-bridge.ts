@@ -7,6 +7,7 @@ import type {
 import type { OpenMlsBridge } from "./bridge.js";
 import type {
   OpenMlsCheckpointStore,
+  OpenMlsPendingOutboundCommit,
 } from "./checkpoint.js";
 
 import type {
@@ -17,21 +18,16 @@ import type {
   WasmProvider,
 } from "./wasm-api.js";
 
-type PendingMembershipChange =
-  | {
-      type: "add";
-      member: GroupMember;
-    }
-  | {
-      type: "remove";
-      installationId: string;
-    };
-
 interface GroupState {
   group: WasmGroup;
   snapshot: GroupSnapshot;
   hydrated: boolean;
-  pendingChange?: PendingMembershipChange;
+
+  pendingOutbound?:
+    OpenMlsPendingOutboundCommit;
+
+  needsGroupStatePublish:
+    boolean;
 }
 
 const MAX_PROCESSED_HANDSHAKES =
@@ -167,6 +163,22 @@ export class BrowserOpenMlsBridge
               hydrated:
                 persistedGroup
                   .hydrated,
+
+              ...(persistedGroup
+                .pendingOutbound
+                ? {
+                    pendingOutbound:
+                      clonePendingOutbound(
+                        persistedGroup
+                          .pendingOutbound,
+                      ),
+                  }
+                : {}),
+
+              needsGroupStatePublish:
+                persistedGroup
+                  .needsGroupStatePublish ??
+                false,
             },
           );
         }
@@ -265,6 +277,8 @@ export class BrowserOpenMlsBridge
         group,
         snapshot,
         hydrated: true,
+        needsGroupStatePublish:
+          false,
       },
     );
 
@@ -317,14 +331,44 @@ export class BrowserOpenMlsBridge
       );
 
       try {
-        state.pendingChange = {
-          type: "add",
-          member: cloneMember(input.member),
+        const commit =
+          copyBytes(
+            result.commit,
+          );
+
+        const welcome =
+          copyBytes(
+            result.welcome,
+          );
+
+        state.pendingOutbound = {
+          change: {
+            type: "add",
+            member:
+              cloneMember(
+                input.member,
+              ),
+          },
+
+          commit:
+            copyBytes(commit),
+
+          welcome:
+            copyBytes(welcome),
+
+          sentAt:
+            Date.now(),
+
+          targetEpoch:
+            state.snapshot.epoch +
+            1n,
         };
 
+        await this.persistCheckpoint();
+
         return {
-          commit: copyBytes(result.commit),
-          welcome: copyBytes(result.welcome),
+          commit,
+          welcome,
         };
       } finally {
         result.free();
@@ -381,14 +425,34 @@ export class BrowserOpenMlsBridge
         leafIndex,
       );
 
-    state.pendingChange = {
-      type: "remove",
-      installationId:
-        input.installationId,
+    const commitBytes =
+      copyBytes(commit);
+
+    state.pendingOutbound = {
+      change: {
+        type: "remove",
+        installationId:
+          input.installationId,
+      },
+
+      commit:
+        copyBytes(
+          commitBytes,
+        ),
+
+      sentAt:
+        Date.now(),
+
+      targetEpoch:
+        state.snapshot.epoch +
+        1n,
     };
 
+    await this.persistCheckpoint();
+
     return {
-      commit: copyBytes(commit),
+      commit:
+        commitBytes,
     };
   }
 
@@ -401,14 +465,17 @@ export class BrowserOpenMlsBridge
     const state =
       this.requireGroup(conversationId);
 
-    const change =
-      state.pendingChange;
+    const pending =
+      state.pendingOutbound;
 
-    if (!change) {
+    if (!pending) {
       throw new Error(
         `MLS group has no pending commit: ${conversationId}`,
       );
     }
+
+    const change =
+      pending.change;
 
     state.group.merge_pending_commit(
       provider,
@@ -436,7 +503,10 @@ export class BrowserOpenMlsBridge
       };
     }
 
-    delete state.pendingChange;
+    delete state.pendingOutbound;
+
+    state.needsGroupStatePublish =
+      true;
 
     await this.persistCheckpoint();
 
@@ -458,7 +528,7 @@ export class BrowserOpenMlsBridge
       provider,
     );
 
-    delete state.pendingChange;
+    delete state.pendingOutbound;
 
     await this.persistCheckpoint();
   }
@@ -511,6 +581,8 @@ export class BrowserOpenMlsBridge
         group,
         snapshot,
         hydrated: false,
+        needsGroupStatePublish:
+          false,
       },
     );
 
@@ -880,7 +952,7 @@ export class BrowserOpenMlsBridge
   private requireNoPendingCommit(
     state: GroupState,
   ): void {
-    if (state.pendingChange) {
+    if (state.pendingOutbound) {
       throw new Error(
         "MLS group already has a pending commit",
       );
@@ -966,6 +1038,51 @@ function cloneMember(
     ...member,
     credential:
       copyBytes(member.credential),
+  };
+}
+
+function clonePendingOutbound(
+  pending:
+    OpenMlsPendingOutboundCommit,
+): OpenMlsPendingOutboundCommit {
+  return {
+    change:
+      pending.change.type ===
+        "add"
+        ? {
+            type: "add",
+            member:
+              cloneMember(
+                pending.change
+                  .member,
+              ),
+          }
+        : {
+            type: "remove",
+            installationId:
+              pending.change
+                .installationId,
+          },
+
+    commit:
+      copyBytes(
+        pending.commit,
+      ),
+
+    ...(pending.welcome
+      ? {
+          welcome:
+            copyBytes(
+              pending.welcome,
+            ),
+        }
+      : {}),
+
+    sentAt:
+      pending.sentAt,
+
+    targetEpoch:
+      pending.targetEpoch,
   };
 }
 

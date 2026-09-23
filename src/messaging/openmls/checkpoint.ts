@@ -4,9 +4,37 @@ import type {
   InstallationId,
 } from "../types.js";
 
+export type OpenMlsPendingMembershipChange =
+  | {
+      type: "add";
+      member: GroupMember;
+    }
+  | {
+      type: "remove";
+      installationId: string;
+    };
+
+export interface OpenMlsPendingOutboundCommit {
+  change: OpenMlsPendingMembershipChange;
+
+  commit: Uint8Array;
+
+  welcome?: Uint8Array;
+
+  sentAt: number;
+
+  targetEpoch: bigint;
+}
+
 export interface OpenMlsPersistedGroup {
   snapshot: GroupSnapshot;
   hydrated: boolean;
+
+  pendingOutbound?:
+    OpenMlsPendingOutboundCommit;
+
+  needsGroupStatePublish?:
+    boolean;
 }
 
 export interface OpenMlsCheckpoint {
@@ -233,7 +261,65 @@ function isPersistedGroup(
       "boolean" &&
     isGroupSnapshot(
       value.snapshot,
+    ) &&
+    (
+      value.pendingOutbound ===
+        undefined ||
+      isPendingOutbound(
+        value.pendingOutbound,
+      )
+    ) &&
+    (
+      value.needsGroupStatePublish ===
+        undefined ||
+      typeof value.needsGroupStatePublish ===
+        "boolean"
     )
+  );
+}
+
+function isPendingOutbound(
+  value: unknown,
+): value is OpenMlsPendingOutboundCommit {
+  if (
+    !isRecord(value) ||
+    !(value.commit instanceof
+      Uint8Array) ||
+    (
+      value.welcome !==
+        undefined &&
+      !(value.welcome instanceof
+        Uint8Array)
+    ) ||
+    typeof value.sentAt !==
+      "number" ||
+    !Number.isFinite(
+      value.sentAt,
+    ) ||
+    typeof value.targetEpoch !==
+      "bigint" ||
+    !isRecord(
+      value.change,
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    value.change.type ===
+      "add"
+  ) {
+    return isGroupMember(
+      value.change.member,
+    );
+  }
+
+  return (
+    value.change.type ===
+      "remove" &&
+    typeof value.change
+      .installationId ===
+      "string"
   );
 }
 
