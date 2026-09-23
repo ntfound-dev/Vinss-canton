@@ -86,6 +86,14 @@ async function run() {
       "browser-deal-1",
     );
 
+  // The production provider publishes encrypted
+  // group_state after a membership commit.
+  // This bridge-only smoke acknowledges that step
+  // explicitly before another membership change.
+  await alice.markGroupStatePublished(
+    "browser-deal-1",
+  );
+
   const bobAfterJoin =
     await bob.joinFromWelcome({
       welcome: add.welcome,
@@ -151,6 +159,10 @@ async function run() {
     await alice.mergePendingCommit(
       "browser-deal-1",
     );
+
+  await alice.markGroupStatePublished(
+    "browser-deal-1",
+  );
 
   if (
     aliceAfterRemove.members.some(
