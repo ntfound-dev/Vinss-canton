@@ -1,8 +1,6 @@
 import type {
   ConversationId,
   GroupMember,
-  GroupMembershipChange,
-  GroupMetadata,
   GroupSnapshot,
   MessagingIdentity,
 } from "../types.js";
@@ -12,16 +10,19 @@ export interface OpenMlsBridge {
     identity: MessagingIdentity,
   ): Promise<void>;
 
-  createKeyPackage(): Promise<Uint8Array>;
+  createKeyPackage():
+    Promise<Uint8Array>;
 
   createGroup(input: {
-    conversationId: ConversationId;
+    conversationId:
+      ConversationId;
     title: string;
     creator: GroupMember;
   }): Promise<GroupSnapshot>;
 
   prepareAddMember(input: {
-    conversationId: ConversationId;
+    conversationId:
+      ConversationId;
     member: GroupMember;
     keyPackage: Uint8Array;
   }): Promise<{
@@ -30,49 +31,63 @@ export interface OpenMlsBridge {
   }>;
 
   prepareRemoveMember(input: {
-    conversationId: ConversationId;
+    conversationId:
+      ConversationId;
     installationId: string;
   }): Promise<{
     commit: Uint8Array;
   }>;
 
   mergePendingCommit(
-    conversationId: ConversationId,
+    conversationId:
+      ConversationId,
   ): Promise<GroupSnapshot>;
 
   clearPendingCommit(
-    conversationId: ConversationId,
+    conversationId:
+      ConversationId,
   ): Promise<void>;
 
   joinFromWelcome(input: {
     welcome: Uint8Array;
-    metadata: GroupMetadata;
-    members: readonly GroupMember[];
+    conversationId:
+      ConversationId;
   }): Promise<GroupSnapshot>;
 
   processHandshake(input: {
-    conversationId: ConversationId;
+    conversationId:
+      ConversationId;
     message: Uint8Array;
-    change: GroupMembershipChange;
   }): Promise<GroupSnapshot>;
 
-  encryptApplicationMessage(input: {
-    conversationId: ConversationId;
-    plaintext: Uint8Array;
-  }): Promise<{
+  applyGroupSnapshot(
+    snapshot: GroupSnapshot,
+  ): Promise<GroupSnapshot>;
+
+  encryptApplicationMessage(
+    input: {
+      conversationId:
+        ConversationId;
+      plaintext: Uint8Array;
+    },
+  ): Promise<{
     epoch: bigint;
     ciphertext: Uint8Array;
   }>;
 
-  decryptApplicationMessage(input: {
-    conversationId: ConversationId;
-    ciphertext: Uint8Array;
-  }): Promise<{
+  decryptApplicationMessage(
+    input: {
+      conversationId:
+        ConversationId;
+      ciphertext: Uint8Array;
+    },
+  ): Promise<{
     epoch: bigint;
     plaintext: Uint8Array;
   }>;
 
   getGroupSnapshot(
-    conversationId: ConversationId,
+    conversationId:
+      ConversationId,
   ): Promise<GroupSnapshot>;
 }

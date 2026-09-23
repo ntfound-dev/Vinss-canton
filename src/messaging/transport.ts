@@ -1,9 +1,6 @@
 import type {
   CiphertextEnvelope,
   ConversationId,
-  GroupMember,
-  GroupMembershipChange,
-  GroupMetadata,
   InstallationId,
 } from "./types.js";
 
@@ -25,18 +22,11 @@ interface MlsHandshakeBase {
 export interface MlsCommitDelivery
   extends MlsHandshakeBase {
   kind: "commit";
-  change: GroupMembershipChange;
-}
-
-export interface MlsWelcomeContext {
-  metadata: GroupMetadata;
-  members: readonly GroupMember[];
 }
 
 export interface MlsWelcomeDelivery
   extends MlsHandshakeBase {
   kind: "welcome";
-  context: MlsWelcomeContext;
 }
 
 export type MlsHandshakeDelivery =
@@ -61,18 +51,11 @@ export interface MessagingTransport {
     readonly KeyPackageEnvelope[]
   >;
 
-  /**
-   * Relay persistence must be atomic.
-   * Either the whole MLS delivery batch is accepted or none is.
-   */
   publishHandshakes(
     deliveries:
       readonly MlsHandshakeDelivery[],
   ): Promise<void>;
 
-  /**
-   * Results must be returned in strictly increasing sequence order.
-   */
   fetchHandshakes(
     installationId: InstallationId,
     cursor?: string,

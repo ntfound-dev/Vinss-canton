@@ -1,6 +1,6 @@
 import {
-  decodeMessage,
-  encodeMessage,
+  decodeSecurePayload,
+  encodeSecurePayload,
 } from "../content.js";
 import type {
   SecureMessagingProvider,
@@ -159,6 +159,10 @@ export class OpenMlsMessagingProvider
         await this.bridge.mergePendingCommit(
           conversationId,
         );
+
+      await this.publishGroupState(
+        snapshot,
+      );
     }
 
     return snapshot;
@@ -206,6 +210,10 @@ export class OpenMlsMessagingProvider
         await this.bridge.mergePendingCommit(
           conversationId,
         );
+
+      await this.publishGroupState(
+        snapshot,
+      );
     }
 
     return snapshot;
@@ -232,7 +240,10 @@ export class OpenMlsMessagingProvider
           conversationId:
             message.conversationId,
           plaintext:
-            encodeMessage(message),
+            encodeSecurePayload({
+              kind: "message",
+              message,
+            }),
         });
 
     await this.transport
@@ -312,10 +323,46 @@ export class OpenMlsMessagingProvider
         );
       }
 
-      const message =
-        decodeMessage(
+      const securePayload =
+        decodeSecurePayload(
           decrypted.plaintext,
         );
+
+      if (
+        securePayload.kind ===
+        "group_state"
+      ) {
+        if (
+          securePayload.snapshot
+            .metadata
+            .conversationId !==
+          conversationId
+        ) {
+          throw new Error(
+            "Encrypted group state conversation mismatch",
+          );
+        }
+
+        if (
+          securePayload.snapshot
+            .epoch !==
+          decrypted.epoch
+        ) {
+          throw new Error(
+            "Encrypted group state epoch mismatch",
+          );
+        }
+
+        await this.bridge
+          .applyGroupSnapshot(
+            securePayload.snapshot,
+          );
+
+        continue;
+      }
+
+      const message =
+        securePayload.message;
 
       if (
         message.id !==
@@ -338,6 +385,52 @@ export class OpenMlsMessagingProvider
           }
         : {}),
     };
+  }
+
+  private async publishGroupState(
+    snapshot: GroupSnapshot,
+  ): Promise<void> {
+    const identity =
+      this.requireInitialized();
+
+    const encrypted =
+      await this.bridge
+        .encryptApplicationMessage({
+          conversationId:
+            snapshot.metadata
+              .conversationId,
+          plaintext:
+            encodeSecurePayload({
+              kind: "group_state",
+              snapshot,
+            }),
+        });
+
+    if (
+      encrypted.epoch !==
+      snapshot.epoch
+    ) {
+      throw new Error(
+        "MLS group state encryption epoch mismatch",
+      );
+    }
+
+    await this.transport
+      .publishCiphertext({
+        id:
+          `group-state:${snapshot.metadata.conversationId}:${snapshot.epoch}:${globalThis.crypto.randomUUID()}`,
+        conversationId:
+          snapshot.metadata
+            .conversationId,
+        senderInstallationId:
+          identity.installationId,
+        epoch:
+          encrypted.epoch,
+        sentAt:
+          Date.now(),
+        payload:
+          encrypted.ciphertext,
+      });
   }
 
   private async publishOrDiscard(

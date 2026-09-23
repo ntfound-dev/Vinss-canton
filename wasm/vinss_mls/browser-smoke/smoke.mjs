@@ -89,11 +89,8 @@ async function run() {
   const bobAfterJoin =
     await bob.joinFromWelcome({
       welcome: add.welcome,
-      metadata: initial.metadata,
-      members: [
-        aliceMember,
-        bobMember,
-      ],
+      conversationId:
+        "browser-deal-1",
     });
 
   if (

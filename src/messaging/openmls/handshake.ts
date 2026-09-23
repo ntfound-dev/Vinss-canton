@@ -38,18 +38,12 @@ export function buildAddHandshakeDeliveries(
         sentAt: input.sentAt,
         payload:
           copyBytes(input.commit),
-        change: {
-          type: "add",
-          member:
-            cloneMember(
-              input.newMember,
-            ),
-        },
       }),
     );
 
-  const welcome:
-    MlsHandshakeDelivery = {
+  return [
+    ...commitDeliveries,
+    {
       conversationId:
         input.snapshot.metadata
           .conversationId,
@@ -62,24 +56,7 @@ export function buildAddHandshakeDeliveries(
       sentAt: input.sentAt,
       payload:
         copyBytes(input.welcome),
-      context: {
-        metadata: {
-          ...input.snapshot.metadata,
-        },
-        members: [
-          ...input.snapshot.members.map(
-            cloneMember,
-          ),
-          cloneMember(
-            input.newMember,
-          ),
-        ],
-      },
-    };
-
-  return [
-    ...commitDeliveries,
-    welcome,
+    },
   ];
 }
 
@@ -117,11 +94,6 @@ export function buildRemoveHandshakeDeliveries(
         sentAt: input.sentAt,
         payload:
           copyBytes(input.commit),
-        change: {
-          type: "remove",
-          installationId:
-            input.removedInstallationId,
-        },
       }),
     );
 }
@@ -140,16 +112,6 @@ function existingRecipients(
         installationId !==
         senderInstallationId,
     );
-}
-
-function cloneMember(
-  member: GroupMember,
-): GroupMember {
-  return {
-    ...member,
-    credential:
-      copyBytes(member.credential),
-  };
 }
 
 function copyBytes(

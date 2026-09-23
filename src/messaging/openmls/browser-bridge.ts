@@ -1,7 +1,6 @@
 import type {
   ConversationId,
   GroupMember,
-  GroupMembershipChange,
   GroupSnapshot,
   MessagingIdentity,
 } from "../types.js";
@@ -27,6 +26,7 @@ type PendingMembershipChange =
 interface GroupState {
   group: WasmGroup;
   snapshot: GroupSnapshot;
+  hydrated: boolean;
   pendingChange?: PendingMembershipChange;
 }
 
@@ -131,7 +131,11 @@ export class BrowserOpenMlsBridge
 
     this.#groups.set(
       input.conversationId,
-      { group, snapshot },
+      {
+        group,
+        snapshot,
+        hydrated: true,
+      },
     );
 
     return cloneSnapshot(snapshot);
@@ -325,63 +329,62 @@ export class BrowserOpenMlsBridge
 
   async joinFromWelcome(input: {
     welcome: Uint8Array;
-    metadata: GroupSnapshot["metadata"];
-    members: readonly GroupMember[];
+    conversationId: ConversationId;
   }): Promise<GroupSnapshot> {
     const {
       module,
       provider,
-      activeIdentity,
     } = this.requireSession();
 
     if (
-      !input.members.some(
-        (member) =>
-          member.installationId ===
-          activeIdentity.installationId,
-      )
-    ) {
-      throw new Error(
-        "Active installation is not listed in the MLS group",
-      );
-    }
-
-    if (
       this.#groups.has(
-        input.metadata.conversationId,
+        input.conversationId,
       )
     ) {
       throw new Error(
-        `MLS group already exists: ${input.metadata.conversationId}`,
+        `MLS group already exists: ${input.conversationId}`,
       );
     }
 
-    const group = module.Group.join(
-      provider,
-      input.welcome,
-    );
+    const group =
+      module.Group.join(
+        provider,
+        input.welcome,
+      );
 
+    // Only cryptographic MLS state comes from Welcome.
+    // Application metadata is received later inside an
+    // MLS-encrypted group_state application payload.
     const snapshot: GroupSnapshot = {
       metadata: {
-        ...input.metadata,
+        conversationId:
+          input.conversationId,
+        title: "",
+        createdAt: 0,
+        createdBy: "",
       },
-      epoch: group.epoch(),
-      members:
-        input.members.map(cloneMember),
+      epoch:
+        group.epoch(),
+      members: [],
     };
 
     this.#groups.set(
-      input.metadata.conversationId,
-      { group, snapshot },
+      input.conversationId,
+      {
+        group,
+        snapshot,
+        hydrated: false,
+      },
     );
 
-    return cloneSnapshot(snapshot);
+    return cloneSnapshot(
+      snapshot,
+    );
   }
 
   async processHandshake(input: {
     conversationId: ConversationId;
     message: Uint8Array;
-    change: GroupMembershipChange;
   }): Promise<GroupSnapshot> {
     const { provider } =
       this.requireSession();
@@ -390,11 +393,6 @@ export class BrowserOpenMlsBridge
       this.requireGroup(
         input.conversationId,
       );
-
-    validateMembershipChange(
-      state.snapshot,
-      input.change,
-    );
 
     const result =
       state.group.process(
@@ -415,11 +413,6 @@ export class BrowserOpenMlsBridge
         ...state.snapshot,
         epoch:
           state.group.epoch(),
-        members:
-          applyMembershipChange(
-            state.snapshot,
-            input.change,
-          ),
       };
 
       return cloneSnapshot(
@@ -428,6 +421,37 @@ export class BrowserOpenMlsBridge
     } finally {
       result.free();
     }
+  }
+
+  async applyGroupSnapshot(
+    snapshot: GroupSnapshot,
+  ): Promise<GroupSnapshot> {
+    const conversationId =
+      snapshot.metadata
+        .conversationId;
+
+    const state =
+      this.requireGroup(
+        conversationId,
+      );
+
+    if (
+      snapshot.epoch !==
+      state.group.epoch()
+    ) {
+      throw new Error(
+        "Encrypted group state epoch mismatch",
+      );
+    }
+
+    state.snapshot =
+      cloneSnapshot(snapshot);
+
+    state.hydrated = true;
+
+    return cloneSnapshot(
+      state.snapshot,
+    );
   }
 
   async encryptApplicationMessage(input: {
@@ -498,10 +522,19 @@ export class BrowserOpenMlsBridge
   async getGroupSnapshot(
     conversationId: ConversationId,
   ): Promise<GroupSnapshot> {
-    return cloneSnapshot(
+    const state =
       this.requireGroup(
         conversationId,
-      ).snapshot,
+      );
+
+    if (!state.hydrated) {
+      throw new Error(
+        "MLS group metadata has not been hydrated",
+      );
+    }
+
+    return cloneSnapshot(
+      state.snapshot,
     );
   }
 
@@ -629,56 +662,4 @@ function cloneSnapshot(
         cloneMember,
       ),
   };
-}
-
-function validateMembershipChange(
-  snapshot: GroupSnapshot,
-  change: GroupMembershipChange,
-): void {
-  if (change.type === "add") {
-    if (
-      snapshot.members.some(
-        (member) =>
-          member.installationId ===
-          change.member
-            .installationId,
-      )
-    ) {
-      throw new Error(
-        `MLS member already exists: ${change.member.installationId}`,
-      );
-    }
-
-    return;
-  }
-
-  if (
-    !snapshot.members.some(
-      (member) =>
-        member.installationId ===
-        change.installationId,
-    )
-  ) {
-    throw new Error(
-      `MLS member does not exist: ${change.installationId}`,
-    );
-  }
-}
-
-function applyMembershipChange(
-  snapshot: GroupSnapshot,
-  change: GroupMembershipChange,
-): readonly GroupMember[] {
-  if (change.type === "add") {
-    return [
-      ...snapshot.members,
-      cloneMember(change.member),
-    ];
-  }
-
-  return snapshot.members.filter(
-    (member) =>
-      member.installationId !==
-      change.installationId,
-  );
 }

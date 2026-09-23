@@ -25,35 +25,63 @@ export async function syncMlsHandshakes(
   nextCursor?: string;
 }> {
   const result =
-    await input.transport.fetchHandshakes(
-      input.identity.installationId,
-      input.cursor,
-    );
+    await input.transport
+      .fetchHandshakes(
+        input.identity
+          .installationId,
+        input.cursor,
+      );
 
-  // Validate the complete relay batch before mutating MLS state.
+  // Validate the entire relay batch before changing MLS state.
   validateHandshakeBatch(
     result.items,
-    input.identity.installationId,
+    input.identity
+      .installationId,
   );
 
   if (
     result.items.length > 0 &&
-    result.nextCursor === undefined
+    result.nextCursor ===
+      undefined
   ) {
     throw new Error(
       "MLS handshake cursor missing for non-empty batch",
     );
   }
 
-  for (const envelope of result.items) {
-    await processHandshakeEnvelope(
-      input.bridge,
-      envelope,
-    );
+  for (
+    const envelope
+    of result.items
+  ) {
+    if (
+      envelope.kind ===
+      "welcome"
+    ) {
+      await input.bridge
+        .joinFromWelcome({
+          welcome:
+            envelope.payload,
+          conversationId:
+            envelope
+              .conversationId,
+        });
+
+      continue;
+    }
+
+    await input.bridge
+      .processHandshake({
+        conversationId:
+          envelope
+            .conversationId,
+        message:
+          envelope.payload,
+      });
   }
 
   return {
-    processed: result.items.length,
+    processed:
+      result.items.length,
     ...(result.nextCursor
       ? {
           nextCursor:
@@ -64,16 +92,21 @@ export async function syncMlsHandshakes(
 }
 
 function validateHandshakeBatch(
-  items: readonly MlsHandshakeEnvelope[],
+  items:
+    readonly MlsHandshakeEnvelope[],
   installationId: string,
 ): void {
   let previousSequence:
     | bigint
     | undefined;
 
-  for (const envelope of items) {
+  for (
+    const envelope
+    of items
+  ) {
     if (
-      envelope.recipientInstallationId !==
+      envelope
+        .recipientInstallationId !==
       installationId
     ) {
       throw new Error(
@@ -82,8 +115,10 @@ function validateHandshakeBatch(
     }
 
     if (
-      previousSequence !== undefined &&
-      envelope.sequence <= previousSequence
+      previousSequence !==
+        undefined &&
+      envelope.sequence <=
+        previousSequence
     ) {
       throw new Error(
         "MLS handshake sequence is not strictly increasing",
@@ -93,38 +128,4 @@ function validateHandshakeBatch(
     previousSequence =
       envelope.sequence;
   }
-}
-
-async function processHandshakeEnvelope(
-  bridge: OpenMlsBridge,
-  envelope: MlsHandshakeEnvelope,
-): Promise<void> {
-  if (envelope.kind === "welcome") {
-    if (
-      envelope.context.metadata
-        .conversationId !==
-      envelope.conversationId
-    ) {
-      throw new Error(
-        "MLS Welcome conversation mismatch",
-      );
-    }
-
-    await bridge.joinFromWelcome({
-      welcome: envelope.payload,
-      metadata:
-        envelope.context.metadata,
-      members:
-        envelope.context.members,
-    });
-
-    return;
-  }
-
-  await bridge.processHandshake({
-    conversationId:
-      envelope.conversationId,
-    message: envelope.payload,
-    change: envelope.change,
-  });
 }

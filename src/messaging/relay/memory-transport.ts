@@ -7,8 +7,6 @@ import type {
 
 import type {
   CiphertextEnvelope,
-  GroupMember,
-  GroupMembershipChange,
   InstallationId,
 } from "../types.js";
 
@@ -268,11 +266,16 @@ function validateHandshakeBatch(
   deliveries:
     readonly MlsHandshakeDelivery[],
 ): void {
-  const seen = new Set<string>();
+  const seen =
+    new Set<string>();
 
-  for (const delivery of deliveries) {
+  for (
+    const delivery
+    of deliveries
+  ) {
     if (
-      delivery.payload.byteLength === 0
+      delivery.payload
+        .byteLength === 0
     ) {
       throw new Error(
         "MLS handshake payload cannot be empty",
@@ -280,8 +283,10 @@ function validateHandshakeBatch(
     }
 
     if (
-      delivery.senderInstallationId ===
-      delivery.recipientInstallationId
+      delivery
+        .senderInstallationId ===
+      delivery
+        .recipientInstallationId
     ) {
       throw new Error(
         "MLS handshake cannot target the sender installation",
@@ -291,38 +296,15 @@ function validateHandshakeBatch(
     const deliveryKey =
       `${delivery.kind}:${delivery.recipientInstallationId}`;
 
-    if (seen.has(deliveryKey)) {
+    if (
+      seen.has(deliveryKey)
+    ) {
       throw new Error(
         `Duplicate MLS handshake delivery: ${deliveryKey}`,
       );
     }
 
     seen.add(deliveryKey);
-
-    if (delivery.kind === "welcome") {
-      if (
-        delivery.context.metadata
-          .conversationId !==
-        delivery.conversationId
-      ) {
-        throw new Error(
-          "MLS Welcome conversation mismatch",
-        );
-      }
-
-      const recipientIncluded =
-        delivery.context.members.some(
-          (member) =>
-            member.installationId ===
-            delivery.recipientInstallationId,
-        );
-
-      if (!recipientIncluded) {
-        throw new Error(
-          "MLS Welcome recipient missing from group context",
-        );
-      }
-    }
   }
 }
 
@@ -403,66 +385,23 @@ function cloneHandshakeEnvelope(
 }
 
 function cloneHandshakeDelivery(
-  delivery: MlsHandshakeDelivery,
+  delivery:
+    MlsHandshakeDelivery,
 ): MlsHandshakeDelivery {
-  if (delivery.kind === "commit") {
-    return {
-      ...delivery,
-      payload:
-        new Uint8Array(
-          delivery.payload,
-        ),
-      change:
-        cloneMembershipChange(
-          delivery.change,
-        ),
-    };
-  }
-
   return {
-    ...delivery,
+    conversationId:
+      delivery.conversationId,
+    kind:
+      delivery.kind,
+    senderInstallationId:
+      delivery.senderInstallationId,
+    recipientInstallationId:
+      delivery.recipientInstallationId,
+    sentAt:
+      delivery.sentAt,
     payload:
       new Uint8Array(
         delivery.payload,
-      ),
-    context: {
-      metadata: {
-        ...delivery.context.metadata,
-      },
-      members:
-        delivery.context.members.map(
-          cloneMember,
-        ),
-    },
-  };
-}
-
-function cloneMembershipChange(
-  change: GroupMembershipChange,
-): GroupMembershipChange {
-  if (change.type === "remove") {
-    return {
-      ...change,
-    };
-  }
-
-  return {
-    type: "add",
-    member:
-      cloneMember(
-        change.member,
-      ),
-  };
-}
-
-function cloneMember(
-  member: GroupMember,
-): GroupMember {
-  return {
-    ...member,
-    credential:
-      new Uint8Array(
-        member.credential,
       ),
   };
 }
