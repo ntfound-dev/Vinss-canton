@@ -73,10 +73,24 @@ export interface CantonRoomMessage {
 }
 
 
+export type CantonRoomDealType =
+  | "freelance"
+  | "otc"
+  | "goods"
+  | "digital_goods"
+  | "bounty"
+  | "nft"
+  | "other";
+
 export interface CantonRoomOfferInput {
+  dealType?: CantonRoomDealType;
   amount: string;
   instrumentId: string;
   terms: string;
+  fields?: Readonly<
+    Record<string, string>
+  >;
+  settlementRail?: string;
   expiresInHours?: number;
 }
 
@@ -89,6 +103,12 @@ export interface CantonRoomOffer {
   amount: string;
   instrumentId: string;
   terms: string;
+  dealType:
+    CantonRoomDealType;
+  fields: Readonly<
+    Record<string, string>
+  >;
+  settlementRail: string;
   termsHash: string;
   expiresAt: string;
   own: boolean;
@@ -606,11 +626,27 @@ export class CantonRoomRuntime {
 
     const instrumentId =
       input.instrumentId
-        .trim()
-        .toUpperCase();
+        .trim();
 
     const terms =
       input.terms.trim();
+
+    const dealType =
+      isCantonRoomDealType(
+        input.dealType,
+      )
+        ? input.dealType
+        : "other";
+
+    const fields =
+      cleanOfferFields(
+        input.fields,
+      );
+
+    const settlementRail =
+      input.settlementRail
+        ?.trim() ||
+      "canton";
 
     if (
       !/^\d+(?:\.\d+)?$/.test(
@@ -659,9 +695,13 @@ export class CantonRoomRuntime {
 
     const canonicalTerms =
       JSON.stringify({
+        version: 2,
+        dealType,
+        settlementRail,
         amount,
         instrumentId,
         terms,
+        fields,
         expiresAt,
       });
 
@@ -750,6 +790,9 @@ export class CantonRoomRuntime {
       amount,
       instrumentId,
       terms,
+      dealType,
+      fields,
+      settlementRail,
       termsHash,
       expiresAt,
 
@@ -1258,6 +1301,15 @@ async function toRoomOffer(
     terms:
       parsed.terms,
 
+    dealType:
+      parsed.dealType,
+
+    fields:
+      parsed.fields,
+
+    settlementRail:
+      parsed.settlementRail,
+
     termsHash:
       content.termsHash,
 
@@ -1323,6 +1375,12 @@ function parseCanonicalTerms(
   amount: string;
   instrumentId: string;
   terms: string;
+  dealType:
+    CantonRoomDealType;
+  fields: Readonly<
+    Record<string, string>
+  >;
+  settlementRail: string;
   expiresAt: string;
 } {
   const parsed:
@@ -1356,9 +1414,109 @@ function parseCanonicalTerms(
     terms:
       parsed.terms,
 
+    dealType:
+      isCantonRoomDealType(
+        parsed.dealType,
+      )
+        ? parsed.dealType
+        : "other",
+
+    fields:
+      readOfferFields(
+        parsed.fields,
+      ),
+
+    settlementRail:
+      typeof parsed
+        .settlementRail ===
+        "string" &&
+      parsed
+        .settlementRail
+        .trim()
+        ? parsed
+            .settlementRail
+            .trim()
+        : "canton",
+
     expiresAt:
       parsed.expiresAt,
   };
+}
+
+function isCantonRoomDealType(
+  value: unknown,
+): value is CantonRoomDealType {
+  return (
+    value === "freelance" ||
+    value === "otc" ||
+    value === "goods" ||
+    value ===
+      "digital_goods" ||
+    value === "bounty" ||
+    value === "nft" ||
+    value === "other"
+  );
+}
+
+function cleanOfferFields(
+  value:
+    | Readonly<
+        Record<
+          string,
+          string
+        >
+      >
+    | undefined,
+): Record<string, string> {
+  if (!value) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(
+        ([key, field]) => [
+          key,
+          field.trim(),
+        ],
+      )
+      .filter(
+        ([, field]) =>
+          Boolean(field),
+      ),
+  );
+}
+
+function readOfferFields(
+  value: unknown,
+): Record<string, string> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(
+        (
+          entry,
+        ): entry is [
+          string,
+          string,
+        ] =>
+          typeof entry[1] ===
+          "string",
+      )
+      .map(
+        ([key, field]) => [
+          key,
+          field.trim(),
+        ],
+      )
+      .filter(
+        ([, field]) =>
+          Boolean(field),
+      ),
+  );
 }
 
 async function sha256Hex(
