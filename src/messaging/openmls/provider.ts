@@ -18,6 +18,7 @@ import type {
 } from "../types.js";
 import type {
   OpenMlsBridge,
+  OpenMlsPendingCommitRecovery,
 } from "./bridge.js";
 import {
   buildAddHandshakeDeliveries,
@@ -61,6 +62,10 @@ export class OpenMlsMessagingProvider
       await this.bridge
         .getHandshakeCursor?.();
 
+    await this.recoverPendingWork(
+      identity,
+    );
+
     const keyPackage =
       await this.bridge.createKeyPackage();
 
@@ -82,7 +87,12 @@ export class OpenMlsMessagingProvider
     title: string;
     creator: GroupMember;
   }): Promise<GroupSnapshot> {
-    this.requireInitialized();
+    const identity =
+      this.requireInitialized();
+
+    await this.recoverPendingWork(
+      identity,
+    );
 
     return this.bridge.createGroup(
       input,
@@ -95,6 +105,10 @@ export class OpenMlsMessagingProvider
   ): Promise<GroupSnapshot> {
     const identity =
       this.requireInitialized();
+
+    await this.recoverPendingWork(
+      identity,
+    );
 
     const packages =
       await this.transport.fetchKeyPackages(
@@ -111,6 +125,10 @@ export class OpenMlsMessagingProvider
           pkg,
         ]),
       );
+
+    await this.recoverPendingWork(
+      identity,
+    );
 
     let snapshot =
       await this.bridge.getGroupSnapshot(
@@ -135,36 +153,17 @@ export class OpenMlsMessagingProvider
         );
       }
 
-      const prepared =
-        await this.bridge.prepareAddMember({
-          conversationId,
-          member,
-          keyPackage: pkg.keyPackage,
-        });
-
-      const deliveries =
-        buildAddHandshakeDeliveries({
-          sender: identity,
-          snapshot,
-          newMember: member,
-          commit: prepared.commit,
-          welcome: prepared.welcome,
-          sentAt: Date.now(),
-        });
-
-      await this.publishOrDiscard(
+      await this.bridge.prepareAddMember({
         conversationId,
-        deliveries,
-      );
+        member,
+        keyPackage: pkg.keyPackage,
+      });
 
       snapshot =
-        await this.bridge.mergePendingCommit(
+        await this.finishPendingCommit(
           conversationId,
+          identity,
         );
-
-      await this.publishGroupState(
-        snapshot,
-      );
     }
 
     return snapshot;
@@ -187,35 +186,16 @@ export class OpenMlsMessagingProvider
       const installationId
       of installationIds
     ) {
-      const prepared =
-        await this.bridge.prepareRemoveMember({
-          conversationId,
-          installationId,
-        });
-
-      const deliveries =
-        buildRemoveHandshakeDeliveries({
-          sender: identity,
-          snapshot,
-          removedInstallationId:
-            installationId,
-          commit: prepared.commit,
-          sentAt: Date.now(),
-        });
-
-      await this.publishOrDiscard(
+      await this.bridge.prepareRemoveMember({
         conversationId,
-        deliveries,
-      );
+        installationId,
+      });
 
       snapshot =
-        await this.bridge.mergePendingCommit(
+        await this.finishPendingCommit(
           conversationId,
+          identity,
         );
-
-      await this.publishGroupState(
-        snapshot,
-      );
     }
 
     return snapshot;
@@ -226,6 +206,10 @@ export class OpenMlsMessagingProvider
   ): Promise<void> {
     const identity =
       this.requireInitialized();
+
+    await this.recoverPendingWork(
+      identity,
+    );
 
     if (
       message.senderInstallationId !==
@@ -273,6 +257,10 @@ export class OpenMlsMessagingProvider
     const identity =
       this.requireInitialized();
 
+    await this.recoverPendingWork(
+      identity,
+    );
+
     const handshakeResult =
       await syncMlsHandshakes({
         bridge: this.bridge,
@@ -290,6 +278,12 @@ export class OpenMlsMessagingProvider
       handshakeResult.nextCursor !==
       undefined
     ) {
+      await this.bridge
+        .saveHandshakeCursor?.(
+          handshakeResult
+            .nextCursor,
+        );
+
       this.#handshakeCursor =
         handshakeResult.nextCursor;
     }
@@ -435,38 +429,170 @@ export class OpenMlsMessagingProvider
       });
   }
 
-  private async publishOrDiscard(
-    conversationId: ConversationId,
-    deliveries:
-      readonly MlsHandshakeDelivery[],
+  private async recoverPendingWork(
+    identity:
+      MessagingIdentity,
   ): Promise<void> {
-    if (deliveries.length === 0) {
-      return;
+    const pending =
+      await this.bridge
+        .listPendingOutboundCommits?.() ??
+      [];
+
+    for (
+      const item
+      of pending
+    ) {
+      await this.finishPendingCommit(
+        item.conversationId,
+        identity,
+        item,
+      );
     }
 
-    try {
-      await this.transport
-        .publishHandshakes(
-          deliveries,
+    const unpublished =
+      await this.bridge
+        .listGroupsNeedingStatePublish?.() ??
+      [];
+
+    for (
+      const snapshot
+      of unpublished
+    ) {
+      await this.publishGroupState(
+        snapshot,
+      );
+
+      await this.bridge
+        .markGroupStatePublished?.(
+          snapshot.metadata
+            .conversationId,
         );
-    } catch (publishError) {
-      try {
+    }
+  }
+
+  private async finishPendingCommit(
+    conversationId:
+      ConversationId,
+
+    identity:
+      MessagingIdentity,
+
+    known?:
+      OpenMlsPendingCommitRecovery,
+  ): Promise<GroupSnapshot> {
+    const pending =
+      known ??
+      (
         await this.bridge
-          .clearPendingCommit(
-            conversationId,
-          );
-      } catch (clearError) {
-        throw new AggregateError(
-          [
-            publishError,
-            clearError,
-          ],
-          "MLS delivery failed and pending commit could not be cleared",
+          .listPendingOutboundCommits?.() ??
+        []
+      ).find(
+        (item) =>
+          item.conversationId ===
+          conversationId,
+      );
+
+    if (!pending) {
+      throw new Error(
+        `MLS pending outbound commit not found: ${conversationId}`,
+      );
+    }
+
+    let deliveries:
+      readonly MlsHandshakeDelivery[];
+
+    if (
+      pending.change.type ===
+        "add"
+    ) {
+      if (!pending.welcome) {
+        throw new Error(
+          "MLS add recovery is missing Welcome",
         );
       }
 
-      throw publishError;
+      deliveries =
+        buildAddHandshakeDeliveries({
+          sender:
+            identity,
+
+          snapshot:
+            pending.snapshot,
+
+          newMember:
+            pending.change
+              .member,
+
+          commit:
+            pending.commit,
+
+          welcome:
+            pending.welcome,
+
+          sentAt:
+            pending.sentAt,
+        });
+    } else {
+      deliveries =
+        buildRemoveHandshakeDeliveries({
+          sender:
+            identity,
+
+          snapshot:
+            pending.snapshot,
+
+          removedInstallationId:
+            pending.change
+              .installationId,
+
+          commit:
+            pending.commit,
+
+          sentAt:
+            pending.sentAt,
+        });
     }
+
+    const durableDeliveries =
+      deliveries.map(
+        (delivery) => ({
+          ...delivery,
+
+          id:
+            durableHandshakeId(
+              delivery,
+              pending
+                .targetEpoch,
+            ),
+        }),
+      );
+
+    if (
+      durableDeliveries.length >
+      0
+    ) {
+      await this.transport
+        .publishHandshakes(
+          durableDeliveries,
+        );
+    }
+
+    const snapshot =
+      await this.bridge
+        .mergePendingCommit(
+          conversationId,
+        );
+
+    await this.publishGroupState(
+      snapshot,
+    );
+
+    await this.bridge
+      .markGroupStatePublished?.(
+        conversationId,
+      );
+
+    return snapshot;
   }
 
   private requireInitialized():
@@ -479,4 +605,29 @@ export class OpenMlsMessagingProvider
 
     return this.#identity;
   }
+}
+
+
+function durableHandshakeId(
+  delivery:
+    MlsHandshakeDelivery,
+  targetEpoch:
+    bigint,
+): string {
+  return [
+    "mls",
+    encodeURIComponent(
+      delivery.conversationId,
+    ),
+    targetEpoch.toString(),
+    delivery.kind,
+    encodeURIComponent(
+      delivery
+        .senderInstallationId,
+    ),
+    encodeURIComponent(
+      delivery
+        .recipientInstallationId,
+    ),
+  ].join(":");
 }

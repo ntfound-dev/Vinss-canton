@@ -243,9 +243,56 @@ export class CantonMessagingTransport
       this.directory
         .activeParty();
 
+    const normalized =
+      deliveries.map(
+        (delivery) => ({
+          ...delivery,
+
+          id:
+            delivery.id ??
+            crypto.randomUUID(),
+        }),
+      );
+
+    const durable =
+      deliveries.every(
+        (delivery) =>
+          typeof delivery.id ===
+            "string" &&
+          delivery.id.length > 0,
+      );
+
+    const deliveryIds =
+      normalized.map(
+        (delivery) =>
+          delivery.id,
+      );
+
+    if (durable) {
+      const existing =
+        await existingHandshakeIds(
+          this.ledger,
+          activeParty,
+          deliveryIds,
+        );
+
+      if (
+        existing.size ===
+        deliveryIds.length
+      ) {
+        return;
+      }
+
+      if (existing.size > 0) {
+        throw new Error(
+          "Partial durable MLS handshake batch already exists on Canton",
+        );
+      }
+    }
+
     const creates =
       await Promise.all(
-        deliveries.map(
+        normalized.map(
           async (
             delivery,
           ) => {
@@ -279,24 +326,31 @@ export class CantonMessagingTransport
 
               createArguments: {
                 deliveryId:
-                  crypto.randomUUID(),
+                  delivery.id,
+
                 channelId:
                   delivery
                     .conversationId,
+
                 sender,
                 recipient,
+
                 senderInstallationId:
                   delivery
                     .senderInstallationId,
+
                 recipientInstallationId:
                   delivery
                     .recipientInstallationId,
+
                 kind:
                   delivery.kind,
+
                 payloadB64:
                   bytesToBase64(
                     delivery.payload,
                   ),
+
                 createdAt:
                   toDamlTime(
                     delivery.sentAt,
@@ -307,17 +361,62 @@ export class CantonMessagingTransport
         ),
       );
 
-    // One Canton composite command:
-    // all Commit/Welcome creations succeed or fail together.
-    await this.ledger.submitCreates({
-      actingParty:
-        activeParty,
-      commandId:
-        commandId(
-          "mls-handshake",
-        ),
-      creates,
-    });
+    const durableCommandId =
+      durable
+        ? await handshakeCommandId(
+            deliveryIds,
+          )
+        : commandId(
+            "mls-handshake",
+          );
+
+    try {
+      await this.ledger.submitCreates({
+        actingParty:
+          activeParty,
+
+        commandId:
+          durableCommandId,
+
+        creates,
+      });
+    } catch (submitError) {
+      if (!durable) {
+        throw submitError;
+      }
+
+      try {
+        const existing =
+          await existingHandshakeIds(
+            this.ledger,
+            activeParty,
+            deliveryIds,
+          );
+
+        if (
+          existing.size ===
+          deliveryIds.length
+        ) {
+          return;
+        }
+
+        if (existing.size > 0) {
+          throw new Error(
+            "Partial durable MLS handshake batch exists after failed submission",
+          );
+        }
+      } catch (confirmError) {
+        throw new AggregateError(
+          [
+            submitError,
+            confirmError,
+          ],
+          "MLS handshake publication outcome is unknown",
+        );
+      }
+
+      throw submitError;
+    }
   }
 
   async fetchHandshakes(
@@ -652,6 +751,94 @@ export class CantonMessagingTransport
         : {}),
     };
   }
+}
+
+async function existingHandshakeIds(
+  ledger:
+    CantonLedgerClient,
+
+  party:
+    CantonPartyId,
+
+  ids:
+    readonly string[],
+): Promise<Set<string>> {
+  const wanted =
+    new Set(ids);
+
+  const result =
+    new Set<string>();
+
+  const contracts =
+    await ledger
+      .queryActiveContracts(
+        party,
+      );
+
+  for (
+    const contract
+    of contracts
+  ) {
+    if (
+      !isCantonTemplate(
+        contract.templateId,
+        "MlsDelivery",
+      )
+    ) {
+      continue;
+    }
+
+    const id =
+      readString(
+        contract
+          .createArgument,
+        "deliveryId",
+      );
+
+    if (
+      wanted.has(id)
+    ) {
+      result.add(id);
+    }
+  }
+
+  return result;
+}
+
+async function handshakeCommandId(
+  ids:
+    readonly string[],
+): Promise<string> {
+  const input =
+    new TextEncoder()
+      .encode(
+        [...ids]
+          .sort()
+          .join("\n"),
+      );
+
+  const digest =
+    new Uint8Array(
+      await crypto.subtle.digest(
+        "SHA-256",
+        input,
+      ),
+    );
+
+  const hex =
+    [...digest]
+      .map(
+        (value) =>
+          value
+            .toString(16)
+            .padStart(
+              2,
+              "0",
+            ),
+      )
+      .join("");
+
+  return `mls-handshake-${hex}`;
 }
 
 function commandId(

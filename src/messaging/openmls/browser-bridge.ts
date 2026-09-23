@@ -4,7 +4,10 @@ import type {
   GroupSnapshot,
   MessagingIdentity,
 } from "../types.js";
-import type { OpenMlsBridge } from "./bridge.js";
+import type {
+  OpenMlsBridge,
+  OpenMlsPendingCommitRecovery,
+} from "./bridge.js";
 import type {
   OpenMlsCheckpointStore,
   OpenMlsPendingOutboundCommit,
@@ -757,6 +760,81 @@ export class BrowserOpenMlsBridge
     }
   }
 
+  async listPendingOutboundCommits():
+    Promise<
+      readonly OpenMlsPendingCommitRecovery[]
+    > {
+    this.requireSession();
+
+    const result:
+      OpenMlsPendingCommitRecovery[] =
+      [];
+
+    for (
+      const [
+        conversationId,
+        state,
+      ]
+      of this.#groups
+    ) {
+      if (!state.pendingOutbound) {
+        continue;
+      }
+
+      result.push({
+        conversationId,
+
+        snapshot:
+          cloneSnapshot(
+            state.snapshot,
+          ),
+
+        ...clonePendingOutbound(
+          state.pendingOutbound,
+        ),
+      });
+    }
+
+    return result;
+  }
+
+  async listGroupsNeedingStatePublish():
+    Promise<
+      readonly GroupSnapshot[]
+    > {
+    this.requireSession();
+
+    return [
+      ...this.#groups
+        .values(),
+    ]
+      .filter(
+        (state) =>
+          state.needsGroupStatePublish,
+      )
+      .map(
+        (state) =>
+          cloneSnapshot(
+            state.snapshot,
+          ),
+      );
+  }
+
+  async markGroupStatePublished(
+    conversationId:
+      ConversationId,
+  ): Promise<void> {
+    const state =
+      this.requireGroup(
+        conversationId,
+      );
+
+    state.needsGroupStatePublish =
+      false;
+
+    await this.persistCheckpoint();
+  }
+
   async getHandshakeCursor():
     Promise<string | undefined> {
     this.requireSession();
@@ -861,6 +939,21 @@ export class BrowserOpenMlsBridge
 
                 hydrated:
                   state.hydrated,
+
+                ...(state
+                  .pendingOutbound
+                  ? {
+                      pendingOutbound:
+                        clonePendingOutbound(
+                          state
+                            .pendingOutbound,
+                        ),
+                    }
+                  : {}),
+
+                needsGroupStatePublish:
+                  state
+                    .needsGroupStatePublish,
               }),
             ),
 
@@ -955,6 +1048,14 @@ export class BrowserOpenMlsBridge
     if (state.pendingOutbound) {
       throw new Error(
         "MLS group already has a pending commit",
+      );
+    }
+
+    if (
+      state.needsGroupStatePublish
+    ) {
+      throw new Error(
+        "MLS group has unpublished post-commit state",
       );
     }
   }

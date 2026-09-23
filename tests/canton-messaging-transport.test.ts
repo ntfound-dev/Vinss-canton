@@ -177,6 +177,94 @@ describe(
     );
 
     it(
+      "does not republish a durable MLS handshake already present on Canton",
+      async () => {
+        const ledger =
+          new FakeLedger();
+
+        ledger.contracts = [
+          {
+            contractId:
+              "existing-delivery",
+
+            templateId:
+              "abc:Vinss.Messaging:MlsDelivery",
+
+            offset:
+              12n,
+
+            createArgument: {
+              deliveryId:
+                "mls:deal-1:2:welcome:alice-phone:bob-phone",
+
+              channelId:
+                "deal-1",
+
+              sender:
+                "Alice::party",
+
+              recipient:
+                "Bob::party",
+
+              senderInstallationId:
+                "alice-phone",
+
+              recipientInstallationId:
+                "bob-phone",
+
+              kind:
+                "welcome",
+
+              payloadB64:
+                "AQI=",
+
+              createdAt:
+                "2026-09-23T00:00:00.000Z",
+            },
+          },
+        ];
+
+        const transport =
+          new CantonMessagingTransport(
+            ledger,
+            directory,
+          );
+
+        await transport
+          .publishHandshakes([
+            {
+              id:
+                "mls:deal-1:2:welcome:alice-phone:bob-phone",
+
+              conversationId:
+                "deal-1",
+
+              kind:
+                "welcome",
+
+              senderInstallationId:
+                "alice-phone",
+
+              recipientInstallationId:
+                "bob-phone",
+
+              sentAt:
+                100,
+
+              payload:
+                new Uint8Array(
+                  [1, 2],
+                ),
+            },
+          ]);
+
+        expect(
+          ledger.submissions,
+        ).toHaveLength(0);
+      },
+    );
+
+    it(
       "writes MLS ciphertext instead of plaintext",
       async () => {
         const ledger =

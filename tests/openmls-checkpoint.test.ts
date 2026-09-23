@@ -44,6 +44,28 @@ describe(
               {
                 hydrated: true,
 
+                needsGroupStatePublish:
+                  true,
+
+                pendingOutbound: {
+                  change: {
+                    type: "remove",
+                    installationId:
+                      "old-phone",
+                  },
+
+                  commit:
+                    new Uint8Array(
+                      [6, 7],
+                    ),
+
+                  sentAt:
+                    456,
+
+                  targetEpoch:
+                    8n,
+                },
+
                 snapshot: {
                   metadata: {
                     conversationId:
@@ -105,6 +127,17 @@ describe(
           decoded.groups[0]
             ?.snapshot.epoch,
         ).toBe(7n);
+
+        expect(
+          decoded.groups[0]
+            ?.pendingOutbound
+            ?.targetEpoch,
+        ).toBe(8n);
+
+        expect(
+          decoded.groups[0]
+            ?.needsGroupStatePublish,
+        ).toBe(true);
 
         expect(
           decoded.groups[0]
