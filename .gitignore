@@ -11,3 +11,5 @@ wasm/**/pkg/
 frontend/.next/
 
 .cache/
+.vercel
+.env*
