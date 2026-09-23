@@ -21,6 +21,10 @@ import type {
   CantonMessagingDirectory,
 } from "./directory.js";
 
+import type {
+  CantonLiveStateStore,
+} from "./live-state-store.js";
+
 import {
   isCantonTemplate,
 } from "./templates.js";
@@ -44,6 +48,9 @@ export class CantonLiveMessagingSession {
 
     private readonly installationId:
       InstallationId,
+
+    private readonly stateStore?:
+      CantonLiveStateStore,
   ) {}
 
   async start(input: {
@@ -77,12 +84,22 @@ export class CantonLiveMessagingSession {
       this.directory
         .activeParty();
 
+    const persistedOffset =
+      await this.stateStore
+        ?.loadLedgerOffset(
+          party,
+          this.installationId,
+        );
+
+    const afterExclusive =
+      persistedOffset ??
+      input.afterExclusive;
+
     return this.updates
       .subscribe({
         party,
 
-        afterExclusive:
-          input.afterExclusive,
+        afterExclusive,
 
         ...(input.onError
           ? {
@@ -114,11 +131,24 @@ export class CantonLiveMessagingSession {
               const conversationId
               of conversations
             ) {
-              const cursor =
+              let cursor =
                 this.#messageCursors
                   .get(
                     conversationId,
                   );
+
+              if (
+                cursor ===
+                  undefined &&
+                this.stateStore
+              ) {
+                cursor =
+                  await this.stateStore
+                    .loadMessageCursor(
+                      this.installationId,
+                      conversationId,
+                    );
+              }
 
               const result =
                 await this.provider
@@ -130,6 +160,18 @@ export class CantonLiveMessagingSession {
               if (
                 result.nextCursor
               ) {
+                if (
+                  this.stateStore
+                ) {
+                  await this.stateStore
+                    .saveMessageCursor(
+                      this.installationId,
+                      conversationId,
+                      result
+                        .nextCursor,
+                    );
+                }
+
                 this.#messageCursors
                   .set(
                     conversationId,
@@ -149,6 +191,17 @@ export class CantonLiveMessagingSession {
                       .messages,
                   );
               }
+            }
+
+            if (
+              this.stateStore
+            ) {
+              await this.stateStore
+                .saveLedgerOffset(
+                  party,
+                  this.installationId,
+                  batch.offset,
+                );
             }
 
             await input
