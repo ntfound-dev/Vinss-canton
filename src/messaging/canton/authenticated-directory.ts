@@ -15,6 +15,10 @@ import type {
   CantonMessagingDirectory,
 } from "./directory.js";
 
+import {
+  isCantonTemplate,
+} from "./templates.js";
+
 export interface CantonDirectoryResolvers {
   localInstallationId:
     InstallationId;
@@ -40,6 +44,9 @@ export class AuthenticatedCantonMessagingDirectory
   implements CantonMessagingDirectory
 {
   private constructor(
+    private readonly ledger:
+      CantonLedgerClient,
+
     private readonly party:
       CantonPartyId,
 
@@ -74,6 +81,7 @@ export class AuthenticatedCantonMessagingDirectory
     }
 
     return new AuthenticatedCantonMessagingDirectory(
+      ledger,
       party,
       resolvers,
     );
@@ -102,13 +110,102 @@ export class AuthenticatedCantonMessagingDirectory
           installationId,
         );
 
-    if (!resolved) {
-      throw new Error(
-        `No Canton party binding for installation: ${installationId}`,
+    const contracts =
+      await this.ledger
+        .queryActiveContracts(
+          this.party,
+        );
+
+    const verifiedOwners =
+      new Set<
+        CantonPartyId
+      >();
+
+    for (
+      const contract
+      of contracts
+    ) {
+      if (
+        !isCantonTemplate(
+          contract.templateId,
+          "KeyPackageOffer",
+        )
+      ) {
+        continue;
+      }
+
+      const args =
+        contract.createArgument;
+
+      if (
+        readString(
+          args,
+          "requester",
+        ) !== this.party ||
+        readString(
+          args,
+          "installationId",
+        ) !== installationId
+      ) {
+        continue;
+      }
+
+      const expiresAt =
+        Date.parse(
+          readString(
+            args,
+            "expiresAt",
+          ),
+        );
+
+      if (
+        !Number.isFinite(
+          expiresAt,
+        ) ||
+        expiresAt <=
+          Date.now()
+      ) {
+        continue;
+      }
+
+      verifiedOwners.add(
+        readString(
+          args,
+          "owner",
+        ),
       );
     }
 
-    return resolved;
+    if (
+      verifiedOwners.size ===
+      0
+    ) {
+      throw new Error(
+        `No verified Canton party binding for installation: ${installationId}`,
+      );
+    }
+
+    if (
+      verifiedOwners.size >
+      1
+    ) {
+      throw new Error(
+        `Ambiguous Canton party binding for installation: ${installationId}`,
+      );
+    }
+
+    const verified =
+      [...verifiedOwners][0]!;
+
+    if (
+      verified !== resolved
+    ) {
+      throw new Error(
+        `Canton party binding mismatch for installation: ${installationId}`,
+      );
+    }
+
+    return verified;
   }
 
   recipientsForConversation(
@@ -129,4 +226,25 @@ export class AuthenticatedCantonMessagingDirectory
     return this.resolvers
       .keyPackageReaders();
   }
+}
+
+
+function readString(
+  value:
+    Record<string, unknown>,
+  key: string,
+): string {
+  const result =
+    value[key];
+
+  if (
+    typeof result !==
+      "string"
+  ) {
+    throw new Error(
+      `Invalid Canton directory field: ${key}`,
+    );
+  }
+
+  return result;
 }
