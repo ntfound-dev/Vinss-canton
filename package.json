@@ -8,6 +8,7 @@
     "build": "tsc"
   },
   "devDependencies": {
+    "next": "^16.3.6",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
   }
