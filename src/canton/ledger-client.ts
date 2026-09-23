@@ -29,6 +29,13 @@ export interface CantonCreatedContract {
   packageName?: string;
 }
 
+export interface CantonActiveContractSnapshot {
+  offset: bigint;
+
+  contracts:
+    readonly CantonCreatedContract[];
+}
+
 export interface CantonAuthenticatedIdentity {
   userId: string;
   primaryParty:
@@ -49,6 +56,12 @@ export interface CantonLedgerClient {
     party: CantonPartyId,
   ): Promise<
     readonly CantonCreatedContract[]
+  >;
+
+  queryActiveContractsSnapshot(
+    party: CantonPartyId,
+  ): Promise<
+    CantonActiveContractSnapshot
   >;
 
   queryCreatedContractsSince(

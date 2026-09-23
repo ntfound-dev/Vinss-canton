@@ -3,6 +3,7 @@ import type {
 } from "./types.js";
 
 import type {
+  CantonActiveContractSnapshot,
   CantonAuthenticatedIdentity,
   CantonCreatedContract,
   CantonLedgerClient,
@@ -215,13 +216,30 @@ export class HttpCantonLedgerClient
   ): Promise<
     readonly CantonCreatedContract[]
   > {
+    const snapshot =
+      await this
+        .queryActiveContractsSnapshot(
+          party,
+        );
+
+    return snapshot.contracts;
+  }
+
+  async queryActiveContractsSnapshot(
+    party: CantonPartyId,
+  ): Promise<
+    CantonActiveContractSnapshot
+  > {
     const activeAtOffset =
       await this.getLedgerEnd();
 
     if (
       activeAtOffset === 0n
     ) {
-      return [];
+      return {
+        offset: 0n,
+        contracts: [],
+      };
     }
 
     const responses =
@@ -264,11 +282,18 @@ export class HttpCantonLedgerClient
         );
 
       if (created) {
-        contracts.push(created);
+        contracts.push(
+          created,
+        );
       }
     }
 
-    return contracts;
+    return {
+      offset:
+        activeAtOffset,
+
+      contracts,
+    };
   }
 
   async queryCreatedContractsSince(

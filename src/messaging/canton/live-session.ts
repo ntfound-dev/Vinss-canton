@@ -1,5 +1,6 @@
 import type {
   CantonCreatedContract,
+  CantonLedgerClient,
 } from "../../canton/ledger-client.js";
 
 import type {
@@ -29,6 +30,29 @@ import {
   isCantonTemplate,
 } from "./templates.js";
 
+interface LiveSessionCallbacks {
+  onMessages(
+    conversationId:
+      ConversationId,
+    messages:
+      readonly PlainMessage[],
+  ):
+    | void
+    | Promise<void>;
+
+  onLedgerOffset?(
+    offset: bigint,
+  ):
+    | void
+    | Promise<void>;
+
+  onError?(
+    error: Error,
+  ): void;
+
+  onClose?(): void;
+}
+
 export class CantonLiveMessagingSession {
   readonly #messageCursors =
     new Map<
@@ -43,6 +67,9 @@ export class CantonLiveMessagingSession {
     private readonly updates:
       CantonUpdateStream,
 
+    private readonly ledger:
+      CantonLedgerClient,
+
     private readonly directory:
       CantonMessagingDirectory,
 
@@ -53,31 +80,9 @@ export class CantonLiveMessagingSession {
       CantonLiveStateStore,
   ) {}
 
-  async start(input: {
-    afterExclusive:
-      bigint;
-
-    onMessages(
-      conversationId:
-        ConversationId,
-      messages:
-        readonly PlainMessage[],
-    ):
-      | void
-      | Promise<void>;
-
-    onLedgerOffset?(
-      offset: bigint,
-    ):
-      | void
-      | Promise<void>;
-
-    onError?(
-      error: Error,
-    ): void;
-
-    onClose?(): void;
-  }): Promise<
+  async start(
+    input: LiveSessionCallbacks,
+  ): Promise<
     CantonUpdateSubscription
   > {
     const party =
@@ -91,9 +96,57 @@ export class CantonLiveMessagingSession {
           this.installationId,
         );
 
-    const afterExclusive =
-      persistedOffset ??
-      input.afterExclusive;
+    let afterExclusive:
+      bigint;
+
+    if (
+      persistedOffset !==
+      undefined
+    ) {
+      afterExclusive =
+        persistedOffset;
+    } else {
+      // First startup:
+      //
+      // 1. Capture ACS at exact offset X.
+      // 2. Bring MLS/application state up to date
+      //    for conversations visible at X.
+      // 3. Persist X.
+      // 4. Subscribe beginExclusive = X.
+      //
+      // Anything <= X belongs to the snapshot.
+      // Anything > X belongs to the live stream.
+      const snapshot =
+        await this.ledger
+          .queryActiveContractsSnapshot(
+            party,
+          );
+
+      await this.processContracts(
+        snapshot.contracts,
+        party,
+        input,
+      );
+
+      if (
+        this.stateStore
+      ) {
+        await this.stateStore
+          .saveLedgerOffset(
+            party,
+            this.installationId,
+            snapshot.offset,
+          );
+      }
+
+      await input
+        .onLedgerOffset?.(
+          snapshot.offset,
+        );
+
+      afterExclusive =
+        snapshot.offset;
+    }
 
     return this.updates
       .subscribe({
@@ -119,79 +172,11 @@ export class CantonLiveMessagingSession {
           async (
             batch,
           ) => {
-            const conversations =
-              relevantConversations(
-                batch
-                  .createdContracts,
-                party,
-                this.installationId,
-              );
-
-            for (
-              const conversationId
-              of conversations
-            ) {
-              let cursor =
-                this.#messageCursors
-                  .get(
-                    conversationId,
-                  );
-
-              if (
-                cursor ===
-                  undefined &&
-                this.stateStore
-              ) {
-                cursor =
-                  await this.stateStore
-                    .loadMessageCursor(
-                      this.installationId,
-                      conversationId,
-                    );
-              }
-
-              const result =
-                await this.provider
-                  .sync(
-                    conversationId,
-                    cursor,
-                  );
-
-              if (
-                result.nextCursor
-              ) {
-                if (
-                  this.stateStore
-                ) {
-                  await this.stateStore
-                    .saveMessageCursor(
-                      this.installationId,
-                      conversationId,
-                      result
-                        .nextCursor,
-                    );
-                }
-
-                this.#messageCursors
-                  .set(
-                    conversationId,
-                    result
-                      .nextCursor,
-                  );
-              }
-
-              if (
-                result.messages
-                  .length > 0
-              ) {
-                await input
-                  .onMessages(
-                    conversationId,
-                    result
-                      .messages,
-                  );
-              }
-            }
+            await this.processContracts(
+              batch.createdContracts,
+              party,
+              input,
+            );
 
             if (
               this.stateStore
@@ -210,6 +195,88 @@ export class CantonLiveMessagingSession {
               );
           },
       });
+  }
+
+  private async processContracts(
+    contracts:
+      readonly CantonCreatedContract[],
+
+    party: string,
+
+    input:
+      LiveSessionCallbacks,
+  ): Promise<void> {
+    const conversations =
+      relevantConversations(
+        contracts,
+        party,
+        this.installationId,
+      );
+
+    for (
+      const conversationId
+      of conversations
+    ) {
+      let cursor =
+        this.#messageCursors
+          .get(
+            conversationId,
+          );
+
+      if (
+        cursor ===
+          undefined &&
+        this.stateStore
+      ) {
+        cursor =
+          await this.stateStore
+            .loadMessageCursor(
+              this.installationId,
+              conversationId,
+            );
+      }
+
+      const result =
+        await this.provider
+          .sync(
+            conversationId,
+            cursor,
+          );
+
+      if (
+        result.nextCursor
+      ) {
+        if (
+          this.stateStore
+        ) {
+          await this.stateStore
+            .saveMessageCursor(
+              this.installationId,
+              conversationId,
+              result
+                .nextCursor,
+            );
+        }
+
+        this.#messageCursors
+          .set(
+            conversationId,
+            result
+              .nextCursor,
+          );
+      }
+
+      if (
+        result.messages
+          .length > 0
+      ) {
+        await input
+          .onMessages(
+            conversationId,
+            result.messages,
+          );
+      }
+    }
   }
 }
 

@@ -6,6 +6,10 @@ import {
 } from "vitest";
 
 import type {
+  CantonLedgerClient,
+} from "../src/canton/ledger-client.js";
+
+import type {
   CantonUpdateStream,
 } from "../src/canton/update-stream.js";
 
@@ -25,7 +29,131 @@ describe(
   "Canton live messaging session",
   () => {
     it(
-      "wakes OpenMLS sync when Canton emits a relevant contract",
+      "bootstraps ACS at offset X before subscribing from X",
+      async () => {
+        const order:
+          string[] = [];
+
+        let subscribedFrom:
+          bigint | undefined;
+
+        const ledger = {
+          async queryActiveContractsSnapshot() {
+            order.push(
+              "snapshot",
+            );
+
+            return {
+              offset: 41n,
+
+              contracts: [
+                {
+                  contractId:
+                    "delivery-bootstrap",
+
+                  templateId:
+                    "abc:Vinss.Messaging:MlsDelivery",
+
+                  offset: 41n,
+
+                  createArgument: {
+                    channelId:
+                      "deal-1",
+
+                    recipient:
+                      "Bob::party",
+
+                    recipientInstallationId:
+                      "bob-phone",
+                  },
+                },
+              ],
+            };
+          },
+        } as unknown as
+          CantonLedgerClient;
+
+        const updates:
+          CantonUpdateStream = {
+            async subscribe(
+              input,
+            ) {
+              order.push(
+                "subscribe",
+              );
+
+              subscribedFrom =
+                input.afterExclusive;
+
+              return {
+                close() {},
+              };
+            },
+          };
+
+        const sync =
+          vi.fn()
+            .mockImplementation(
+              async () => {
+                order.push(
+                  "sync",
+                );
+
+                return {
+                  messages: [],
+                  nextCursor:
+                    "c:41",
+                };
+              },
+            );
+
+        const provider = {
+          sync,
+        } as unknown as
+          SecureMessagingProvider;
+
+        const directory = {
+          activeParty() {
+            return "Bob::party";
+          },
+        } as unknown as
+          CantonMessagingDirectory;
+
+        const session =
+          new CantonLiveMessagingSession(
+            provider,
+            updates,
+            ledger,
+            directory,
+            "bob-phone",
+          );
+
+        await session.start({
+          onMessages:
+            vi.fn(),
+        });
+
+        expect(order).toEqual([
+          "snapshot",
+          "sync",
+          "subscribe",
+        ]);
+
+        expect(
+          subscribedFrom,
+        ).toBe(41n);
+
+        expect(
+          sync,
+        ).toHaveBeenCalledWith(
+          "deal-1",
+          undefined,
+        );
+      },
+    );
+
+    it(
+      "wakes OpenMLS sync for updates strictly after snapshot boundary",
       async () => {
         let emit:
           | Parameters<
@@ -35,11 +163,25 @@ describe(
             >[0]["onBatch"]
           | undefined;
 
+        const ledger = {
+          async queryActiveContractsSnapshot() {
+            return {
+              offset: 41n,
+              contracts: [],
+            };
+          },
+        } as unknown as
+          CantonLedgerClient;
+
         const updates:
           CantonUpdateStream = {
             async subscribe(
               input,
             ) {
+              expect(
+                input.afterExclusive,
+              ).toBe(41n);
+
               emit =
                 input.onBatch;
 
@@ -71,7 +213,7 @@ describe(
               ],
 
               nextCursor:
-                "c:50",
+                "c:42",
             });
 
         const provider = {
@@ -93,14 +235,12 @@ describe(
           new CantonLiveMessagingSession(
             provider,
             updates,
+            ledger,
             directory,
             "bob-phone",
           );
 
         await session.start({
-          afterExclusive:
-            41n,
-
           onMessages,
         });
 
