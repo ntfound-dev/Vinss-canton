@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #07090c;
+  --color-vault: #0d1319;
+  --color-paper: #f6f5f1;
+  --color-wire: #26313b;
+  --color-signal: #5eead4;
+  --color-danger: #fb7185;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: #07090c;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(
+      circle at 75% 10%,
+      rgba(94, 234, 212, .05),
+      transparent 26rem
+    ),
+    linear-gradient(
+      180deg,
+      #080b0e,
+      #07090c
+    );
+  color: #f6f5f1;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+}
+
+.vinss-page {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.vinss-page::before {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  opacity: .55;
+  background-image:
+    radial-gradient(
+      circle,
+      rgba(94,234,212,.16)
+      0 1px,
+      transparent 1.4px
+    ),
+    linear-gradient(
+      rgba(94,234,212,.015)
+      1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(94,234,212,.012)
+      1px,
+      transparent 1px
+    );
+  background-size:
+    137px 137px,
+    48px 48px,
+    48px 48px;
+  animation:
+    vinss-drift 28s
+    linear infinite;
+}
+
+.vinss-panel {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(17,23,29,.88),
+      rgba(10,14,18,.94)
+    );
+  border:
+    1px solid
+    rgba(148,163,184,.10);
+  box-shadow:
+    inset 0 1px 0
+    rgba(255,255,255,.018),
+    0 24px 80px
+    rgba(0,0,0,.16);
+}
+
+.vinss-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #5eead4;
+  box-shadow:
+    0 0 14px
+    rgba(94,234,212,.75);
+  animation:
+    vinss-pulse 1.9s
+    ease-out infinite;
+}
+
+@keyframes vinss-drift {
+  from {
+    background-position:
+      17px 11px,
+      0 0,
+      0 0;
+  }
+
+  to {
+    background-position:
+      65px -37px,
+      48px 48px,
+      48px 48px;
+  }
+}
+
+@keyframes vinss-pulse {
+  0% {
+    box-shadow:
+      0 0 0 0
+      rgba(94,234,212,.35);
+  }
+
+  80%,
+  100% {
+    box-shadow:
+      0 0 0 7px
+      rgba(94,234,212,0);
+  }
+}
+
+@media (
+  prefers-reduced-motion:
+  reduce
+) {
+  .vinss-page::before,
+  .vinss-live-dot {
+    animation: none;
+  }
+}
