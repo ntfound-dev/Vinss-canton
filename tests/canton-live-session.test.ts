@@ -153,6 +153,129 @@ describe(
     );
 
     it(
+      "reconnects from the last processed Canton offset",
+      async () => {
+        vi.useFakeTimers();
+
+        try {
+          const offsets:
+            bigint[] = [];
+
+          let firstOnBatch:
+            | Parameters<
+                CantonUpdateStream[
+                  "subscribe"
+                ]
+              >[0]["onBatch"]
+            | undefined;
+
+          let firstOnClose:
+            | (() => void)
+            | undefined;
+
+          const ledger = {
+            async queryActiveContractsSnapshot() {
+              return {
+                offset: 41n,
+                contracts: [],
+              };
+            },
+          } as unknown as
+            CantonLedgerClient;
+
+          const updates:
+            CantonUpdateStream = {
+              async subscribe(
+                input,
+              ) {
+                offsets.push(
+                  input.afterExclusive,
+                );
+
+                if (
+                  offsets.length ===
+                  1
+                ) {
+                  firstOnBatch =
+                    input.onBatch;
+
+                  firstOnClose =
+                    input.onClose;
+                }
+
+                return {
+                  close() {},
+                };
+              },
+            };
+
+          const provider = {
+            sync:
+              vi.fn()
+                .mockResolvedValue({
+                  messages: [],
+                }),
+          } as unknown as
+            SecureMessagingProvider;
+
+          const directory = {
+            activeParty() {
+              return "Bob::party";
+            },
+          } as unknown as
+            CantonMessagingDirectory;
+
+          const session =
+            new CantonLiveMessagingSession(
+              provider,
+              updates,
+              ledger,
+              directory,
+              "bob-phone",
+            );
+
+          const subscription =
+            await session.start({
+              onMessages:
+                vi.fn(),
+            });
+
+          if (
+            !firstOnBatch ||
+            !firstOnClose
+          ) {
+            throw new Error(
+              "Initial live subscription was not created",
+            );
+          }
+
+          await firstOnBatch({
+            offset: 42n,
+            createdContracts: [],
+          });
+
+          firstOnClose();
+
+          await vi
+            .advanceTimersByTimeAsync(
+              500,
+            );
+
+          expect(
+            offsets,
+          ).toEqual([
+            41n,
+            42n,
+          ]);
+
+          subscription.close();
+        } finally {
+          vi.useRealTimers();
+        }
+      },
+    );
+
+    it(
       "wakes OpenMLS sync for updates strictly after snapshot boundary",
       async () => {
         let emit:

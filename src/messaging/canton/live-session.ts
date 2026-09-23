@@ -30,6 +30,12 @@ import {
   isCantonTemplate,
 } from "./templates.js";
 
+const RECONNECT_BASE_DELAY_MS =
+  500;
+
+const RECONNECT_MAX_DELAY_MS =
+  10_000;
+
 interface LiveSessionCallbacks {
   onMessages(
     conversationId:
@@ -148,53 +154,173 @@ export class CantonLiveMessagingSession {
         snapshot.offset;
     }
 
-    return this.updates
-      .subscribe({
-        party,
+    let lastOffset =
+      afterExclusive;
 
-        afterExclusive,
+    let current:
+      CantonUpdateSubscription |
+      undefined;
 
-        ...(input.onError
-          ? {
-              onError:
-                input.onError,
-            }
-          : {}),
+    let reconnectTimer:
+      ReturnType<
+        typeof setTimeout
+      > |
+      undefined;
 
-        ...(input.onClose
-          ? {
-              onClose:
-                input.onClose,
-            }
-          : {}),
+    let reconnectAttempt = 0;
 
-        onBatch:
-          async (
-            batch,
-          ) => {
-            await this.processContracts(
-              batch.createdContracts,
-              party,
-              input,
-            );
+    let closed = false;
 
-            if (
-              this.stateStore
-            ) {
-              await this.stateStore
-                .saveLedgerOffset(
-                  party,
-                  this.installationId,
-                  batch.offset,
+    let connect:
+      () => Promise<void>;
+
+    const scheduleReconnect =
+      (): void => {
+        if (
+          closed ||
+          reconnectTimer !==
+            undefined
+        ) {
+          return;
+        }
+
+        const delay =
+          Math.min(
+            RECONNECT_BASE_DELAY_MS *
+              2 **
+                reconnectAttempt,
+            RECONNECT_MAX_DELAY_MS,
+          );
+
+        reconnectAttempt =
+          Math.min(
+            reconnectAttempt + 1,
+            10,
+          );
+
+        reconnectTimer =
+          setTimeout(
+            () => {
+              reconnectTimer =
+                undefined;
+
+              void connect()
+                .catch(
+                  (error) => {
+                    if (closed) {
+                      return;
+                    }
+
+                    input.onError?.(
+                      toError(
+                        error,
+                      ),
+                    );
+
+                    scheduleReconnect();
+                  },
                 );
-            }
+            },
+            delay,
+          );
+      };
 
-            await input
-              .onLedgerOffset?.(
-                batch.offset,
-              );
-          },
-      });
+    connect =
+      async (): Promise<void> => {
+        const subscription =
+          await this.updates
+            .subscribe({
+              party,
+
+              afterExclusive:
+                lastOffset,
+
+              ...(input.onError
+                ? {
+                    onError:
+                      input.onError,
+                  }
+                : {}),
+
+              onClose:
+                () => {
+                  current =
+                    undefined;
+
+                  input.onClose?.();
+
+                  scheduleReconnect();
+                },
+
+              onBatch:
+                async (
+                  batch,
+                ) => {
+                  await this.processContracts(
+                    batch.createdContracts,
+                    party,
+                    input,
+                  );
+
+                  if (
+                    this.stateStore
+                  ) {
+                    await this.stateStore
+                      .saveLedgerOffset(
+                        party,
+                        this.installationId,
+                        batch.offset,
+                      );
+                  }
+
+                  lastOffset =
+                    batch.offset;
+
+                  await input
+                    .onLedgerOffset?.(
+                      batch.offset,
+                    );
+                },
+            });
+
+        if (closed) {
+          subscription.close();
+          return;
+        }
+
+        current =
+          subscription;
+
+        reconnectAttempt = 0;
+      };
+
+    await connect();
+
+    return {
+      close() {
+        closed = true;
+
+        if (
+          reconnectTimer !==
+            undefined
+        ) {
+          clearTimeout(
+            reconnectTimer,
+          );
+
+          reconnectTimer =
+            undefined;
+        }
+
+        const subscription =
+          current;
+
+        current =
+          undefined;
+
+        subscription?.close();
+      },
+    };
   }
 
   private async processContracts(
@@ -411,4 +537,15 @@ function readStringArray(
   }
 
   return result;
+}
+
+
+function toError(
+  value: unknown,
+): Error {
+  return value instanceof Error
+    ? value
+    : new Error(
+        String(value),
+      );
 }
