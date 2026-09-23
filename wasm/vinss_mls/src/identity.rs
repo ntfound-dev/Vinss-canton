@@ -40,6 +40,61 @@ impl Identity {
         })
     }
 
+    pub fn load(
+        provider: &Provider,
+        identity: &str,
+        public_key: &[u8],
+    ) -> Result<Identity, JsError> {
+        let signer =
+            SignatureKeyPair::read(
+                provider.as_ref().storage(),
+                public_key,
+                CIPHERSUITE.signature_algorithm(),
+            )
+            .ok_or_else(|| {
+                JsError::new(
+                    "Persisted MLS signature key not found",
+                )
+            })?;
+
+        if signer.public() != public_key {
+            return Err(
+                JsError::new(
+                    "Persisted MLS signature key mismatch",
+                ),
+            );
+        }
+
+        let credential =
+            BasicCredential::new(
+                identity
+                    .as_bytes()
+                    .to_vec(),
+            );
+
+        let credential =
+            CredentialWithKey {
+                credential:
+                    credential.into(),
+                signature_key:
+                    signer
+                        .to_public_vec()
+                        .into(),
+            };
+
+        Ok(Self {
+            credential,
+            signer,
+        })
+    }
+
+    pub fn public_key(
+        &self,
+    ) -> Vec<u8> {
+        self.signer
+            .to_public_vec()
+    }
+
     pub fn create_key_package(
         &self,
         provider: &Provider,

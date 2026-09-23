@@ -96,6 +96,34 @@ impl Group {
         Ok(Self { inner })
     }
 
+    pub fn load(
+        provider: &Provider,
+        group_id: &str,
+    ) -> Result<Group, JsError> {
+        let group_id =
+            GroupId::from_slice(
+                group_id
+                    .as_bytes(),
+            );
+
+        let inner =
+            MlsGroup::load(
+                provider
+                    .as_ref()
+                    .storage(),
+                &group_id,
+            )?
+            .ok_or_else(|| {
+                JsError::new(
+                    "Persisted MLS group not found",
+                )
+            })?;
+
+        Ok(Self {
+            inner,
+        })
+    }
+
     pub fn join(
         provider: &Provider,
         welcome_bytes: &[u8],

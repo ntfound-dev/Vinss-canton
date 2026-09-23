@@ -1,9 +1,21 @@
 export interface WasmProvider {
+  export_storage(): Uint8Array;
+
+  import_storage(
+    bytes: Uint8Array,
+  ): void;
+
   free(): void;
 }
 
 export interface WasmIdentity {
-  create_key_package(provider: WasmProvider): WasmKeyPackage;
+  create_key_package(
+    provider: WasmProvider,
+  ): WasmKeyPackage;
+
+  public_key():
+    Uint8Array;
+
   free(): void;
 }
 
@@ -65,10 +77,18 @@ export interface WasmGroup {
 export interface OpenMlsWasmModule {
   readonly Provider: new () => WasmProvider;
 
-  readonly Identity: new (
-    provider: WasmProvider,
-    identity: string,
-  ) => WasmIdentity;
+  readonly Identity: {
+    new (
+      provider: WasmProvider,
+      identity: string,
+    ): WasmIdentity;
+
+    load(
+      provider: WasmProvider,
+      identity: string,
+      publicKey: Uint8Array,
+    ): WasmIdentity;
+  };
 
   readonly KeyPackage: {
     from_bytes(bytes: Uint8Array): WasmKeyPackage;
@@ -84,6 +104,11 @@ export interface OpenMlsWasmModule {
     join(
       provider: WasmProvider,
       welcome: Uint8Array,
+    ): WasmGroup;
+
+    load(
+      provider: WasmProvider,
+      groupId: string,
     ): WasmGroup;
   };
 

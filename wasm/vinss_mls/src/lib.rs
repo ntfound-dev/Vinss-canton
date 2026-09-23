@@ -4,6 +4,7 @@ mod group;
 mod identity;
 mod key_package;
 mod provider;
+mod storage;
 
 pub use group::{AddMemberResult, Group, ProcessResult};
 pub use identity::Identity;
@@ -14,5 +15,5 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 pub fn vinss_mls_api_version() -> String {
-    "vinss-mls/0.2-openmls-0.9".to_owned()
+    "vinss-mls/0.3-openmls-0.9".to_owned()
 }

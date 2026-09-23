@@ -616,7 +616,7 @@ function assertCompatibleApi(
 
   if (
     !version.startsWith(
-      "vinss-mls/0.2-openmls-0.9",
+      "vinss-mls/0.3-openmls-0.9",
     )
   ) {
     throw new Error(
