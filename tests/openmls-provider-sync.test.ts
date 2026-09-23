@@ -161,5 +161,95 @@ describe(
         );
       },
     );
+
+    it(
+      "skips ciphertext sent by the active installation",
+      async () => {
+        const decrypt =
+          vi.fn();
+
+        const bridge = {
+          initialize:
+            vi.fn()
+              .mockResolvedValue(
+                undefined,
+              ),
+
+          createKeyPackage:
+            vi.fn()
+              .mockResolvedValue(
+                new Uint8Array([9]),
+              ),
+
+          decryptApplicationMessage:
+            decrypt,
+        } as unknown as
+          OpenMlsBridge;
+
+        const transport = {
+          publishKeyPackage:
+            vi.fn()
+              .mockResolvedValue(
+                undefined,
+              ),
+
+          fetchHandshakes:
+            vi.fn()
+              .mockResolvedValue({
+                items: [],
+              }),
+
+          fetchCiphertexts:
+            vi.fn()
+              .mockResolvedValue({
+                items: [
+                  {
+                    id: "own-message",
+                    conversationId:
+                      "deal-1",
+                    senderInstallationId:
+                      "bob-phone",
+                    epoch: 1n,
+                    sentAt: 1,
+                    payload:
+                      new Uint8Array([1]),
+                  },
+                ],
+                nextCursor:
+                  "ciphertext-1",
+              }),
+        } as unknown as
+          MessagingTransport;
+
+        const provider =
+          new OpenMlsMessagingProvider(
+            bridge,
+            transport,
+          );
+
+        await provider.initialize(
+          identity,
+        );
+
+        const result =
+          await provider.sync(
+            "deal-1",
+          );
+
+        expect(
+          decrypt,
+        ).not.toHaveBeenCalled();
+
+        expect(
+          result.messages,
+        ).toEqual([]);
+
+        expect(
+          result.nextCursor,
+        ).toBe(
+          "ciphertext-1",
+        );
+      },
+    );
   },
 );

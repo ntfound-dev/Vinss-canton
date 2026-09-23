@@ -9,3 +9,5 @@ wasm/**/target/
 wasm/**/pkg/
 *.tsbuildinfo
 frontend/.next/
+
+.cache/

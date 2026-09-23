@@ -302,6 +302,16 @@ export class OpenMlsMessagingProvider
       const envelope
       of result.items
     ) {
+      // Sender already owns the plaintext.
+      // Do not process our own MLS ciphertext again.
+      if (
+        envelope
+          .senderInstallationId ===
+        identity.installationId
+      ) {
+        continue;
+      }
+
       const decrypted =
         await this.bridge
           .decryptApplicationMessage({
