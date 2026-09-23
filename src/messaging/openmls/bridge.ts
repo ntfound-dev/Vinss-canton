@@ -52,13 +52,26 @@ export interface OpenMlsBridge {
     welcome: Uint8Array;
     conversationId:
       ConversationId;
+    handshakeId?: string;
   }): Promise<GroupSnapshot>;
 
   processHandshake(input: {
     conversationId:
       ConversationId;
     message: Uint8Array;
+    handshakeId?: string;
   }): Promise<GroupSnapshot>;
+
+  getHandshakeCursor?():
+    Promise<string | undefined>;
+
+  saveHandshakeCursor?(
+    cursor: string,
+  ): Promise<void>;
+
+  hasProcessedHandshake?(
+    handshakeId: string,
+  ): Promise<boolean>;
 
   applyGroupSnapshot(
     snapshot: GroupSnapshot,

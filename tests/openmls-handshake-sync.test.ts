@@ -200,3 +200,84 @@ describe(
     );
   },
 );
+
+describe(
+  "MLS handshake replay protection",
+  () => {
+    it(
+      "skips a handshake already committed to durable MLS state",
+      async () => {
+        const joinFromWelcome =
+          vi.fn();
+
+        const bridge = {
+          hasProcessedHandshake:
+            vi.fn()
+              .mockResolvedValue(
+                true,
+              ),
+
+          joinFromWelcome,
+        } as unknown as
+          OpenMlsBridge;
+
+        const transport = {
+          fetchHandshakes:
+            vi.fn()
+              .mockResolvedValue({
+                items: [
+                  {
+                    id:
+                      "welcome-already-done",
+
+                    sequence:
+                      9n,
+
+                    conversationId:
+                      "deal-replay",
+
+                    kind:
+                      "welcome",
+
+                    senderInstallationId:
+                      "alice-phone",
+
+                    recipientInstallationId:
+                      "bob-phone",
+
+                    sentAt:
+                      9,
+
+                    payload:
+                      new Uint8Array(
+                        [99],
+                      ),
+                  },
+                ],
+
+                nextCursor:
+                  "h:9",
+              }),
+        } as unknown as
+          MessagingTransport;
+
+        const result =
+          await syncMlsHandshakes({
+            bridge,
+            transport,
+            identity,
+          });
+
+        expect(
+          joinFromWelcome,
+        ).not.toHaveBeenCalled();
+
+        expect(result).toEqual({
+          processed: 0,
+          nextCursor:
+            "h:9",
+        });
+      },
+    );
+  },
+);

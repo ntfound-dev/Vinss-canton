@@ -32,6 +32,14 @@ describe(
                 [9, 8, 7],
               ),
 
+            handshakeCursor:
+              "h:42",
+
+            processedHandshakeIds: [
+              "welcome-1",
+              "commit-2",
+            ],
+
             groups: [
               {
                 hydrated: true,

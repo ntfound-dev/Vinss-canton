@@ -34,6 +34,9 @@ interface GroupState {
   pendingChange?: PendingMembershipChange;
 }
 
+const MAX_PROCESSED_HANDSHAKES =
+  256;
+
 export class BrowserOpenMlsBridge
   implements OpenMlsBridge
 {
@@ -44,6 +47,13 @@ export class BrowserOpenMlsBridge
 
   readonly #groups =
     new Map<ConversationId, GroupState>();
+
+  #handshakeCursor:
+    | string
+    | undefined;
+
+  readonly #processedHandshakeIds =
+    new Set<string>();
 
   constructor(
     private readonly loadWasm:
@@ -101,6 +111,18 @@ export class BrowserOpenMlsBridge
             persisted
               .identityPublicKey,
           );
+
+        this.#handshakeCursor =
+          persisted.handshakeCursor;
+
+        for (
+          const handshakeId
+          of persisted
+            .processedHandshakeIds
+        ) {
+          this.#processedHandshakeIds
+            .add(handshakeId);
+        }
 
         for (
           const persistedGroup
@@ -444,6 +466,7 @@ export class BrowserOpenMlsBridge
   async joinFromWelcome(input: {
     welcome: Uint8Array;
     conversationId: ConversationId;
+    handshakeId?: string;
   }): Promise<GroupSnapshot> {
     const {
       module,
@@ -491,6 +514,12 @@ export class BrowserOpenMlsBridge
       },
     );
 
+    if (input.handshakeId) {
+      this.markHandshakeProcessed(
+        input.handshakeId,
+      );
+    }
+
     await this.persistCheckpoint();
 
     return cloneSnapshot(
@@ -501,6 +530,7 @@ export class BrowserOpenMlsBridge
   async processHandshake(input: {
     conversationId: ConversationId;
     message: Uint8Array;
+    handshakeId?: string;
   }): Promise<GroupSnapshot> {
     const { provider } =
       this.requireSession();
@@ -530,6 +560,12 @@ export class BrowserOpenMlsBridge
         epoch:
           state.group.epoch(),
       };
+
+      if (input.handshakeId) {
+        this.markHandshakeProcessed(
+          input.handshakeId,
+        );
+      }
 
       await this.persistCheckpoint();
 
@@ -649,6 +685,40 @@ export class BrowserOpenMlsBridge
     }
   }
 
+  async getHandshakeCursor():
+    Promise<string | undefined> {
+    this.requireSession();
+
+    return this.#handshakeCursor;
+  }
+
+  async saveHandshakeCursor(
+    cursor: string,
+  ): Promise<void> {
+    this.requireSession();
+
+    if (cursor.length === 0) {
+      throw new Error(
+        "MLS handshake cursor cannot be empty",
+      );
+    }
+
+    this.#handshakeCursor =
+      cursor;
+
+    await this.persistCheckpoint();
+  }
+
+  async hasProcessedHandshake(
+    handshakeId: string,
+  ): Promise<boolean> {
+    this.requireSession();
+
+    return this
+      .#processedHandshakeIds
+      .has(handshakeId);
+  }
+
   async getGroupSnapshot(
     conversationId: ConversationId,
   ): Promise<GroupSnapshot> {
@@ -721,10 +791,64 @@ export class BrowserOpenMlsBridge
                   state.hydrated,
               }),
             ),
+
+            ...(this.#handshakeCursor
+              ? {
+                  handshakeCursor:
+                    this.#handshakeCursor,
+                }
+              : {}),
+
+            processedHandshakeIds: [
+              ...this
+                .#processedHandshakeIds,
+            ],
           },
         );
     } finally {
       providerStorage.fill(0);
+    }
+  }
+
+  private markHandshakeProcessed(
+    handshakeId: string,
+  ): void {
+    if (
+      handshakeId.length === 0
+    ) {
+      throw new Error(
+        "MLS handshake ID cannot be empty",
+      );
+    }
+
+    // Reinsert to keep Set insertion order useful
+    // for bounded replay history.
+    this.#processedHandshakeIds
+      .delete(handshakeId);
+
+    this.#processedHandshakeIds
+      .add(handshakeId);
+
+    while (
+      this.#processedHandshakeIds
+        .size >
+      MAX_PROCESSED_HANDSHAKES
+    ) {
+      const oldest =
+        this.#processedHandshakeIds
+          .values()
+          .next()
+          .value;
+
+      if (
+        typeof oldest !==
+        "string"
+      ) {
+        break;
+      }
+
+      this.#processedHandshakeIds
+        .delete(oldest);
     }
   }
 
@@ -795,6 +919,12 @@ export class BrowserOpenMlsBridge
     this.#provider = undefined;
     this.#activeIdentity = undefined;
     this.#module = undefined;
+
+    this.#handshakeCursor =
+      undefined;
+
+    this.#processedHandshakeIds
+      .clear();
   }
 }
 

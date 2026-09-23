@@ -49,10 +49,22 @@ export async function syncMlsHandshakes(
     );
   }
 
+  let processed = 0;
+
   for (
     const envelope
     of result.items
   ) {
+    const alreadyProcessed =
+      await input.bridge
+        .hasProcessedHandshake?.(
+          envelope.id,
+        ) ?? false;
+
+    if (alreadyProcessed) {
+      continue;
+    }
+
     if (
       envelope.kind ===
       "welcome"
@@ -64,7 +76,11 @@ export async function syncMlsHandshakes(
           conversationId:
             envelope
               .conversationId,
+          handshakeId:
+            envelope.id,
         });
+
+      processed += 1;
 
       continue;
     }
@@ -76,12 +92,15 @@ export async function syncMlsHandshakes(
             .conversationId,
         message:
           envelope.payload,
+        handshakeId:
+          envelope.id,
       });
+
+    processed += 1;
   }
 
   return {
-    processed:
-      result.items.length,
+    processed,
     ...(result.nextCursor
       ? {
           nextCursor:

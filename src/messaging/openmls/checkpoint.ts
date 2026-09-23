@@ -22,6 +22,11 @@ export interface OpenMlsCheckpoint {
 
   groups:
     readonly OpenMlsPersistedGroup[];
+
+  handshakeCursor?: string;
+
+  processedHandshakeIds:
+    readonly string[];
 }
 
 export interface OpenMlsCheckpointStore {
@@ -160,6 +165,26 @@ export function decodeOpenMlsCheckpoint(
     ) ||
     !value.groups.every(
       isPersistedGroup,
+    ) ||
+    (
+      value.handshakeCursor !==
+        undefined &&
+      typeof value.handshakeCursor !==
+        "string"
+    ) ||
+    (
+      value.processedHandshakeIds !==
+        undefined &&
+      (
+        !Array.isArray(
+          value.processedHandshakeIds,
+        ) ||
+        !value.processedHandshakeIds.every(
+          (item: unknown) =>
+            typeof item ===
+              "string",
+        )
+      )
     )
   ) {
     throw new Error(
@@ -181,6 +206,21 @@ export function decodeOpenMlsCheckpoint(
 
     groups:
       value.groups,
+
+    ...(typeof value.handshakeCursor ===
+      "string"
+      ? {
+          handshakeCursor:
+            value.handshakeCursor,
+        }
+      : {}),
+
+    processedHandshakeIds:
+      Array.isArray(
+        value.processedHandshakeIds,
+      )
+        ? value.processedHandshakeIds
+        : [],
   };
 }
 

@@ -52,12 +52,14 @@ export class OpenMlsMessagingProvider
     identity: MessagingIdentity,
   ): Promise<void> {
     this.#identity = identity;
-    this.#handshakeCursor =
-      undefined;
 
     await this.bridge.initialize(
       identity,
     );
+
+    this.#handshakeCursor =
+      await this.bridge
+        .getHandshakeCursor?.();
 
     const keyPackage =
       await this.bridge.createKeyPackage();
