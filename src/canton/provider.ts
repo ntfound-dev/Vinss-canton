@@ -25,15 +25,7 @@ export interface CantonOfferProvider {
   ): Promise<void>;
 }
 
-/**
- * Full VINSS Canton business workflow.
- *
- * Offer/Agreement lands first.
- * Fulfillment/settlement remains the next product layer.
- */
-export interface CantonDealProvider
-  extends CantonOfferProvider
-{
+export interface CantonFulfillmentProvider {
   submitFulfillment(
     actingParty: CantonPartyId,
     agreementContractId:
@@ -41,6 +33,38 @@ export interface CantonDealProvider
     fulfillmentHash: string,
   ): Promise<CantonContractId>;
 
+  approveFulfillment(
+    actingParty: CantonPartyId,
+    fulfillmentContractId:
+      CantonContractId,
+  ): Promise<CantonContractId>;
+
+  requestRevision(
+    actingParty: CantonPartyId,
+    fulfillmentContractId:
+      CantonContractId,
+    reviewHash: string,
+  ): Promise<CantonContractId>;
+
+  submitRevision(
+    actingParty: CantonPartyId,
+    revisionRequestContractId:
+      CantonContractId,
+    fulfillmentHash: string,
+  ): Promise<CantonContractId>;
+}
+
+/**
+ * Full VINSS Canton business workflow.
+ *
+ * Offer/Agreement and Fulfillment are explicit.
+ * Economic settlement remains a separate product layer.
+ */
+export interface CantonDealProvider
+  extends
+    CantonOfferProvider,
+    CantonFulfillmentProvider
+{
   settle(
     actingParty: CantonPartyId,
     agreementContractId:

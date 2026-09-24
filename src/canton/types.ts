@@ -6,6 +6,12 @@ export interface DealTerms {
   conversationId: string;
   seller: CantonPartyId;
   buyer: CantonPartyId;
+
+  // Optional at the domain boundary for backward compatibility.
+  // New Canton proposals always materialize both roles explicitly.
+  fulfiller?: CantonPartyId;
+  reviewer?: CantonPartyId;
+
   termsHash: string;
   amount: string;
   instrumentId: string;

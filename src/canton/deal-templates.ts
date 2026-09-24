@@ -10,13 +10,28 @@ export const cantonDealTemplates = {
 
   agreement:
     `#${PACKAGE}:${MODULE}:DealAgreement`,
+
+  fulfillment:
+    `#${PACKAGE}:${MODULE}:DealFulfillment`,
+
+  revisionRequest:
+    `#${PACKAGE}:${MODULE}:DealRevisionRequest`,
+
+  fulfillmentApproval:
+    `#${PACKAGE}:${MODULE}:FulfillmentApproval`,
 } as const;
+
+export type CantonDealTemplateName =
+  | "DealProposal"
+  | "DealAgreement"
+  | "DealFulfillment"
+  | "DealRevisionRequest"
+  | "FulfillmentApproval";
 
 export function isCantonDealTemplate(
   templateId: string,
   templateName:
-    | "DealProposal"
-    | "DealAgreement",
+    CantonDealTemplateName,
 ): boolean {
   return templateId.endsWith(
     `:${MODULE}:${templateName}`,

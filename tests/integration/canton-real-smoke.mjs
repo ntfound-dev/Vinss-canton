@@ -612,6 +612,12 @@ const proposalResult =
           buyer:
             bob,
 
+          fulfiller:
+            bob,
+
+          reviewer:
+            alice,
+
           termsHash:
             crypto
               .createHash("sha256")
@@ -745,6 +751,245 @@ console.log(
 
 console.log(
   "REAL CANTON DEAL ACCEPTANCE: PASS",
+);
+
+const fulfillmentHash =
+  crypto
+    .createHash("sha256")
+    .update(
+      "VINSS freelance work submission v1",
+    )
+    .digest("hex");
+
+await submitExercise(
+  bob,
+  {
+    templateId:
+      `#${PACKAGE}:Vinss.Deal:DealAgreement`,
+
+    contractId:
+      agreement.contractId,
+
+    choice:
+      "SubmitFulfillment",
+
+    choiceArgument: {
+      fulfillmentHash,
+    },
+  },
+);
+
+const fulfillmentOffset =
+  await ledgerEnd();
+
+const fulfillment =
+  collectCreatedEvents(
+    await activeContracts(
+      alice,
+      fulfillmentOffset,
+    ),
+  ).find(
+    (event) =>
+      event
+        ?.createArgument
+        ?.dealId ===
+        dealId &&
+      String(
+        event
+          ?.templateId ??
+          "",
+      ).endsWith(
+        ":Vinss.Deal:DealFulfillment",
+      ),
+  );
+
+assert.ok(
+  fulfillment,
+  "VINSS DealFulfillment was not created",
+);
+
+assert.equal(
+  fulfillment
+    .createArgument
+    .fulfillmentHash,
+  fulfillmentHash,
+);
+
+const reviewHash =
+  crypto
+    .createHash("sha256")
+    .update(
+      "VINSS revision request v1",
+    )
+    .digest("hex");
+
+await submitExercise(
+  alice,
+  {
+    templateId:
+      `#${PACKAGE}:Vinss.Deal:DealFulfillment`,
+
+    contractId:
+      fulfillment.contractId,
+
+    choice:
+      "RequestRevision",
+
+    choiceArgument: {
+      reviewHash,
+    },
+  },
+);
+
+const revisionOffset =
+  await ledgerEnd();
+
+const revisionRequest =
+  collectCreatedEvents(
+    await activeContracts(
+      bob,
+      revisionOffset,
+    ),
+  ).find(
+    (event) =>
+      event
+        ?.createArgument
+        ?.dealId ===
+        dealId &&
+      String(
+        event
+          ?.templateId ??
+          "",
+      ).endsWith(
+        ":Vinss.Deal:DealRevisionRequest",
+      ),
+  );
+
+assert.ok(
+  revisionRequest,
+  "VINSS DealRevisionRequest was not created",
+);
+
+const revisedFulfillmentHash =
+  crypto
+    .createHash("sha256")
+    .update(
+      "VINSS freelance work submission v2",
+    )
+    .digest("hex");
+
+await submitExercise(
+  bob,
+  {
+    templateId:
+      `#${PACKAGE}:Vinss.Deal:DealRevisionRequest`,
+
+    contractId:
+      revisionRequest
+        .contractId,
+
+    choice:
+      "SubmitRevision",
+
+    choiceArgument: {
+      fulfillmentHash:
+        revisedFulfillmentHash,
+    },
+  },
+);
+
+const revisedOffset =
+  await ledgerEnd();
+
+const revisedFulfillment =
+  collectCreatedEvents(
+    await activeContracts(
+      alice,
+      revisedOffset,
+    ),
+  ).find(
+    (event) =>
+      event
+        ?.createArgument
+        ?.dealId ===
+        dealId &&
+      String(
+        event
+          ?.templateId ??
+          "",
+      ).endsWith(
+        ":Vinss.Deal:DealFulfillment",
+      ),
+  );
+
+assert.ok(
+  revisedFulfillment,
+  "VINSS revised DealFulfillment was not created",
+);
+
+assert.equal(
+  revisedFulfillment
+    .createArgument
+    .fulfillmentHash,
+  revisedFulfillmentHash,
+);
+
+await submitExercise(
+  alice,
+  {
+    templateId:
+      `#${PACKAGE}:Vinss.Deal:DealFulfillment`,
+
+    contractId:
+      revisedFulfillment
+        .contractId,
+
+    choice:
+      "Approve",
+
+    choiceArgument: {},
+  },
+);
+
+const approvalOffset =
+  await ledgerEnd();
+
+const approval =
+  collectCreatedEvents(
+    await activeContracts(
+      bob,
+      approvalOffset,
+    ),
+  ).find(
+    (event) =>
+      event
+        ?.createArgument
+        ?.dealId ===
+        dealId &&
+      String(
+        event
+          ?.templateId ??
+          "",
+      ).endsWith(
+        ":Vinss.Deal:FulfillmentApproval",
+      ),
+  );
+
+assert.ok(
+  approval,
+  "VINSS FulfillmentApproval was not created",
+);
+
+console.log(
+  "REAL CANTON FREELANCE FULFILLMENT: PASS",
+);
+
+console.log(
+  "REAL CANTON FULFILLMENT REVISION: PASS",
+);
+
+console.log(
+  "REAL CANTON FULFILLMENT APPROVAL: PASS",
 );
 
 console.log(

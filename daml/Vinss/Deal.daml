@@ -6,6 +6,8 @@ template DealProposal
     conversationId : Text
     seller : Party
     buyer : Party
+    fulfiller : Party
+    reviewer : Party
     termsHash : Text
     amount : Text
     instrumentId : Text
@@ -17,6 +19,12 @@ template DealProposal
 
     ensure
       seller /= buyer
+      &&
+      fulfiller /= reviewer
+      &&
+      (fulfiller == seller || fulfiller == buyer)
+      &&
+      (reviewer == seller || reviewer == buyer)
       &&
       termsHash /= ""
       &&
@@ -38,6 +46,8 @@ template DealProposal
           conversationId
           seller
           buyer
+          fulfiller
+          reviewer
           termsHash
           amount
           instrumentId
@@ -56,6 +66,8 @@ template DealAgreement
     conversationId : Text
     seller : Party
     buyer : Party
+    fulfiller : Party
+    reviewer : Party
     termsHash : Text
     amount : Text
     instrumentId : Text
@@ -67,8 +79,196 @@ template DealAgreement
     ensure
       seller /= buyer
       &&
+      fulfiller /= reviewer
+      &&
+      (fulfiller == seller || fulfiller == buyer)
+      &&
+      (reviewer == seller || reviewer == buyer)
+      &&
       termsHash /= ""
       &&
       amount /= ""
       &&
       instrumentId /= ""
+
+    choice SubmitFulfillment : ContractId DealFulfillment
+      with
+        fulfillmentHash : Text
+      controller fulfiller
+      do
+        assert (fulfillmentHash /= "")
+
+        now <- getTime
+
+        create DealFulfillment with
+          dealId
+          conversationId
+          seller
+          buyer
+          fulfiller
+          reviewer
+          termsHash
+          amount
+          instrumentId
+          expiresAt
+          acceptedAt
+          fulfillmentHash
+          round = 0
+          submittedAt = now
+
+
+template DealFulfillment
+  with
+    dealId : Text
+    conversationId : Text
+    seller : Party
+    buyer : Party
+    fulfiller : Party
+    reviewer : Party
+    termsHash : Text
+    amount : Text
+    instrumentId : Text
+    expiresAt : Time
+    acceptedAt : Time
+    fulfillmentHash : Text
+    round : Int
+    submittedAt : Time
+  where
+    signatory fulfiller
+    observer reviewer
+
+    ensure
+      fulfiller /= reviewer
+      &&
+      fulfillmentHash /= ""
+      &&
+      round >= 0
+
+    choice Approve : ContractId FulfillmentApproval
+      controller reviewer
+      do
+        now <- getTime
+
+        create FulfillmentApproval with
+          dealId
+          conversationId
+          seller
+          buyer
+          fulfiller
+          reviewer
+          termsHash
+          amount
+          instrumentId
+          fulfillmentHash
+          round
+          submittedAt
+          approvedAt = now
+
+    choice RequestRevision : ContractId DealRevisionRequest
+      with
+        reviewHash : Text
+      controller reviewer
+      do
+        assert (reviewHash /= "")
+
+        now <- getTime
+
+        create DealRevisionRequest with
+          dealId
+          conversationId
+          seller
+          buyer
+          fulfiller
+          reviewer
+          termsHash
+          amount
+          instrumentId
+          expiresAt
+          acceptedAt
+          previousFulfillmentHash = fulfillmentHash
+          reviewHash
+          round
+          requestedAt = now
+
+
+template DealRevisionRequest
+  with
+    dealId : Text
+    conversationId : Text
+    seller : Party
+    buyer : Party
+    fulfiller : Party
+    reviewer : Party
+    termsHash : Text
+    amount : Text
+    instrumentId : Text
+    expiresAt : Time
+    acceptedAt : Time
+    previousFulfillmentHash : Text
+    reviewHash : Text
+    round : Int
+    requestedAt : Time
+  where
+    signatory reviewer
+    observer fulfiller
+
+    ensure
+      fulfiller /= reviewer
+      &&
+      previousFulfillmentHash /= ""
+      &&
+      reviewHash /= ""
+      &&
+      round >= 0
+
+    choice SubmitRevision : ContractId DealFulfillment
+      with
+        fulfillmentHash : Text
+      controller fulfiller
+      do
+        assert (fulfillmentHash /= "")
+
+        now <- getTime
+
+        create DealFulfillment with
+          dealId
+          conversationId
+          seller
+          buyer
+          fulfiller
+          reviewer
+          termsHash
+          amount
+          instrumentId
+          expiresAt
+          acceptedAt
+          fulfillmentHash
+          round = round + 1
+          submittedAt = now
+
+
+template FulfillmentApproval
+  with
+    dealId : Text
+    conversationId : Text
+    seller : Party
+    buyer : Party
+    fulfiller : Party
+    reviewer : Party
+    termsHash : Text
+    amount : Text
+    instrumentId : Text
+    fulfillmentHash : Text
+    round : Int
+    submittedAt : Time
+    approvedAt : Time
+  where
+    signatory reviewer
+    observer fulfiller
+
+    ensure
+      fulfiller /= reviewer
+      &&
+      fulfillmentHash /= ""
+      &&
+      round >= 0
