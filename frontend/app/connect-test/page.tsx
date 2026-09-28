@@ -1,6 +1,14 @@
 "use client";
 
-import { CantonWalletConnect } from "@/components/CantonWalletConnect";
+import dynamic from "next/dynamic";
+
+const CantonWalletConnect = dynamic(
+  () =>
+    import("@/components/CantonWalletConnect").then(
+      (mod) => mod.CantonWalletConnect,
+    ),
+  { ssr: false },
+);
 
 export default function ConnectTestPage() {
   return (
