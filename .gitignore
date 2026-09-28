@@ -13,3 +13,4 @@ frontend/.next/
 .cache/
 .vercel
 .env*
+package-lock.json
