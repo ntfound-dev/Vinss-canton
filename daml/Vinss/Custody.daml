@@ -1,0 +1,89 @@
+module Vinss.Custody where
+
+-- Custodian-issued holdings and per-deal locks.
+--
+-- Trust model: `custodian` is the party that really holds the backing value
+-- off-ledger (VINSS treasury, PSP, bank, ...). A holding is only the
+-- custodian's on-ledger acknowledgement that `owner` is entitled to `amount`
+-- of `instrumentId`. Canton does not hold fiat itself, and the custodian
+-- (signatory) can always archive its own contracts, so both deal parties must
+-- agree on the custodian up front (see DealProposal.custodian).
+--
+-- Amounts stay `Text`, like the rest of the VINSS deal model, so a holding is
+-- a per-deal deposit that must match the agreed amount exactly. There is no
+-- split/merge.
+
+template CashHolding
+  with
+    holdingId : Text
+    custodian : Party
+    owner : Party
+    amount : Text
+    instrumentId : Text
+  where
+    signatory custodian
+    observer owner
+
+    ensure
+      holdingId /= ""
+      &&
+      amount /= ""
+      &&
+      instrumentId /= ""
+
+    -- Owner and payee must both authorize a lock, so it can only happen
+    -- inside a workflow both deal parties signed (DealAgreement.FundEscrow).
+    choice LockForDeal : ContractId LockedHolding
+      with
+        dealId : Text
+        payee : Party
+      controller owner, payee
+      do
+        assert (dealId /= "")
+
+        create LockedHolding with
+          holdingId
+          custodian
+          payer = owner
+          payee
+          amount
+          instrumentId
+          dealId
+
+
+template LockedHolding
+  with
+    holdingId : Text
+    custodian : Party
+    payer : Party
+    payee : Party
+    amount : Text
+    instrumentId : Text
+    dealId : Text
+  where
+    signatory custodian
+    observer payer, payee
+
+    ensure
+      holdingId /= ""
+      &&
+      payer /= payee
+      &&
+      amount /= ""
+      &&
+      instrumentId /= ""
+      &&
+      dealId /= ""
+
+    -- Joint release: neither party can release alone. The payer's authority
+    -- comes from the FulfillmentApproval they signed, the payee's from
+    -- claiming it (FulfillmentApproval.Settle).
+    choice ReleaseToPayee : ContractId CashHolding
+      controller payer, payee
+      do
+        create CashHolding with
+          holdingId = holdingId <> ":released"
+          custodian
+          owner = payee
+          amount
+          instrumentId

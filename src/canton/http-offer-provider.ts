@@ -3,15 +3,16 @@ import type {
 } from "./ledger-client.js";
 
 import type {
-  CantonFulfillmentProvider,
-  CantonOfferProvider,
+  CantonDealProvider,
 } from "./provider.js";
 
 import type {
   CantonContractId,
+  CantonHoldingTerms,
   CantonPartyId,
   DealAgreement,
   DealTerms,
+  SettlementReceipt,
 } from "./types.js";
 
 import {
@@ -22,8 +23,7 @@ import {
 
 export class HttpCantonOfferProvider
   implements
-    CantonOfferProvider,
-    CantonFulfillmentProvider
+    CantonDealProvider
 {
   constructor(
     private readonly ledger:
@@ -85,6 +85,19 @@ export class HttpCantonOfferProvider
       );
     }
 
+    if (
+      terms.custodian !==
+        undefined &&
+      (terms.custodian ===
+        terms.seller ||
+        terms.custodian ===
+          terms.buyer)
+    ) {
+      throw new Error(
+        "VINSS custodian must be independent of the deal parties",
+      );
+    }
+
     const createdAt =
       new Date()
         .toISOString();
@@ -106,6 +119,9 @@ export class HttpCantonOfferProvider
               ...terms,
               fulfiller,
               reviewer,
+              custodian:
+                terms.custodian ??
+                null,
               createdAt,
             },
           },
@@ -267,22 +283,116 @@ export class HttpCantonOfferProvider
       });
   }
 
-  async submitFulfillment(
+  async issueHolding(
+    actingParty:
+      CantonPartyId,
+
+    holding:
+      CantonHoldingTerms,
+  ): Promise<CantonContractId> {
+    const holdingId =
+      requireField(
+        holding.holdingId,
+        "holding id",
+      );
+
+    const owner =
+      requireField(
+        holding.owner,
+        "holding owner",
+      );
+
+    const instrumentId =
+      requireField(
+        holding.instrumentId,
+        "holding instrument",
+      );
+
+    const amount =
+      holding.amount.trim();
+
+    if (
+      !/^\d+(?:\.\d+)?$/.test(
+        amount,
+      ) ||
+      Number(amount) <= 0
+    ) {
+      throw new Error(
+        "VINSS holding amount must be greater than zero",
+      );
+    }
+
+    if (owner === actingParty) {
+      throw new Error(
+        "VINSS custodian cannot issue a holding to itself",
+      );
+    }
+
+    if (
+      await this
+        .findHoldingContract(
+          actingParty,
+          holdingId,
+        )
+    ) {
+      throw new Error(
+        `VINSS CashHolding already issued: ${holdingId}`,
+      );
+    }
+
+    await this.ledger
+      .submitCreates({
+        actingParty,
+
+        commandId:
+          `holding-issue-${crypto.randomUUID()}`,
+
+        creates: [
+          {
+            templateId:
+              cantonDealTemplates
+                .cashHolding,
+
+            createArguments: {
+              holdingId,
+
+              custodian:
+                actingParty,
+
+              owner,
+              amount,
+              instrumentId,
+            },
+          },
+        ],
+      });
+
+    const issued =
+      await this
+        .findHoldingContract(
+          actingParty,
+          holdingId,
+        );
+
+    if (!issued) {
+      throw new Error(
+        "VINSS CashHolding was not found after issue",
+      );
+    }
+
+    return issued.contractId;
+  }
+
+  async fundEscrow(
     actingParty:
       CantonPartyId,
 
     agreementContractId:
       CantonContractId,
 
-    fulfillmentHash:
-      string,
+    holdingContractId:
+      CantonContractId,
   ): Promise<CantonContractId> {
-    const cleanHash =
-      requireHash(
-        fulfillmentHash,
-        "fulfillment",
-      );
-
     const agreement =
       await this.requireContract(
         actingParty,
@@ -296,9 +406,160 @@ export class HttpCantonOfferProvider
         "dealId",
       );
 
-    const fulfiller =
+    const custodian =
+      readOptionalString(
+        agreement.createArgument,
+        "custodian",
+      );
+
+    if (custodian === undefined) {
+      throw new Error(
+        "This VINSS deal does not use Canton escrow",
+      );
+    }
+
+    const reviewer =
       readRole(
         agreement.createArgument,
+        "reviewer",
+        "buyer",
+      );
+
+    if (
+      actingParty !==
+      reviewer
+    ) {
+      throw new Error(
+        "Only the VINSS reviewer (payer) can fund the escrow",
+      );
+    }
+
+    const holding =
+      await this.requireContract(
+        actingParty,
+        holdingContractId,
+        "CashHolding",
+      );
+
+    if (
+      readString(
+        holding.createArgument,
+        "custodian",
+      ) !== custodian
+    ) {
+      throw new Error(
+        "VINSS holding was not issued by the agreed custodian",
+      );
+    }
+
+    if (
+      readString(
+        holding.createArgument,
+        "owner",
+      ) !== actingParty
+    ) {
+      throw new Error(
+        "VINSS holding does not belong to the payer",
+      );
+    }
+
+    if (
+      readString(
+        holding.createArgument,
+        "amount",
+      ) !==
+      readString(
+        agreement.createArgument,
+        "amount",
+      )
+    ) {
+      throw new Error(
+        "VINSS holding amount must match the deal amount exactly",
+      );
+    }
+
+    if (
+      readString(
+        holding.createArgument,
+        "instrumentId",
+      ) !==
+      readString(
+        agreement.createArgument,
+        "instrumentId",
+      )
+    ) {
+      throw new Error(
+        "VINSS holding instrument must match the deal instrument",
+      );
+    }
+
+    await this.ledger
+      .submitExercise({
+        actingParty,
+
+        commandId:
+          `deal-escrow-fund-${crypto.randomUUID()}`,
+
+        templateId:
+          cantonDealTemplates
+            .agreement,
+
+        contractId:
+          agreementContractId,
+
+        choice:
+          "FundEscrow",
+
+        choiceArgument: {
+          holdingCid:
+            holdingContractId,
+        },
+      });
+
+    return this
+      .findLatestContractId(
+        actingParty,
+        "DealEscrow",
+        dealId,
+        "VINSS DealEscrow was not found after funding",
+      );
+  }
+
+  async submitFulfillment(
+    actingParty:
+      CantonPartyId,
+
+    sourceContractId:
+      CantonContractId,
+
+    fulfillmentHash:
+      string,
+  ): Promise<CantonContractId> {
+    const cleanHash =
+      requireHash(
+        fulfillmentHash,
+        "fulfillment",
+      );
+
+    const { contract: source, templateName } =
+      await this.requireContractOf(
+        actingParty,
+        sourceContractId,
+        [
+          "DealEscrow",
+          "DealAgreement",
+        ],
+      );
+
+    const dealId =
+      readString(
+        source.createArgument,
+        "dealId",
+      );
+
+    const fulfiller =
+      readRole(
+        source.createArgument,
         "fulfiller",
         "seller",
       );
@@ -312,6 +573,22 @@ export class HttpCantonOfferProvider
       );
     }
 
+    const funded =
+      templateName ===
+      "DealEscrow";
+
+    if (
+      !funded &&
+      readOptionalString(
+        source.createArgument,
+        "custodian",
+      ) !== undefined
+    ) {
+      throw new Error(
+        "This VINSS deal uses Canton escrow: fund it before submitting fulfillment",
+      );
+    }
+
     await this.ledger
       .submitExercise({
         actingParty,
@@ -320,14 +597,19 @@ export class HttpCantonOfferProvider
           `deal-fulfillment-${crypto.randomUUID()}`,
 
         templateId:
-          cantonDealTemplates
-            .agreement,
+          funded
+            ? cantonDealTemplates
+                .escrow
+            : cantonDealTemplates
+                .agreement,
 
         contractId:
-          agreementContractId,
+          sourceContractId,
 
         choice:
-          "SubmitFulfillment",
+          funded
+            ? "SubmitFundedFulfillment"
+            : "SubmitFulfillment",
 
         choiceArgument: {
           fulfillmentHash:
@@ -563,6 +845,102 @@ export class HttpCantonOfferProvider
       );
   }
 
+  async settle(
+    actingParty:
+      CantonPartyId,
+
+    approvalContractId:
+      CantonContractId,
+  ): Promise<SettlementReceipt> {
+    const approval =
+      await this.requireContract(
+        actingParty,
+        approvalContractId,
+        "FulfillmentApproval",
+      );
+
+    const dealId =
+      readString(
+        approval.createArgument,
+        "dealId",
+      );
+
+    const fulfiller =
+      readRole(
+        approval.createArgument,
+        "fulfiller",
+        "seller",
+      );
+
+    if (
+      actingParty !==
+      fulfiller
+    ) {
+      throw new Error(
+        "Only the VINSS fulfiller (payee) can settle the escrow",
+      );
+    }
+
+    if (
+      readOptionalString(
+        approval.createArgument,
+        "lockedHoldingCid",
+      ) === undefined
+    ) {
+      throw new Error(
+        "This VINSS deal has no Canton escrow to settle",
+      );
+    }
+
+    const submission =
+      await this.ledger
+        .submitExercise({
+          actingParty,
+
+          commandId:
+            `deal-settle-${crypto.randomUUID()}`,
+
+          templateId:
+            cantonDealTemplates
+              .fulfillmentApproval,
+
+          contractId:
+            approvalContractId,
+
+          choice:
+            "Settle",
+
+          choiceArgument: {},
+        });
+
+    const receipt =
+      await this
+        .findLatestContract(
+          actingParty,
+          "SettlementReceipt",
+          dealId,
+          "VINSS SettlementReceipt was not found after settlement",
+        );
+
+    return {
+      dealId,
+
+      approvalContractId,
+
+      receiptContractId:
+        receipt.contractId,
+
+      updateId:
+        submission.updateId,
+
+      settledAt:
+        readString(
+          receipt.createArgument,
+          "settledAt",
+        ),
+    };
+  }
+
   private async requireContract(
     party:
       CantonPartyId,
@@ -599,7 +977,53 @@ export class HttpCantonOfferProvider
     return contract;
   }
 
-  private async findLatestContractId(
+  private async requireContractOf(
+    party:
+      CantonPartyId,
+
+    contractId:
+      CantonContractId,
+
+    templateNames:
+      readonly CantonDealTemplateName[],
+  ) {
+    const contracts =
+      await this.ledger
+        .queryActiveContracts(
+          party,
+        );
+
+    for (const contract of contracts) {
+      if (
+        contract.contractId !==
+        contractId
+      ) {
+        continue;
+      }
+
+      const templateName =
+        templateNames.find(
+          (candidate) =>
+            isCantonDealTemplate(
+              contract.templateId,
+              candidate,
+            ),
+        );
+
+      if (templateName) {
+        return {
+          contract,
+          templateName,
+        };
+      }
+    }
+
+    throw new Error(
+      `VINSS ${templateNames.join(" or ")} not found: ${contractId}`,
+    );
+  }
+
+  private async findLatestContract(
     party:
       CantonPartyId,
 
@@ -611,7 +1035,7 @@ export class HttpCantonOfferProvider
 
     missingMessage:
       string,
-  ): Promise<CantonContractId> {
+  ) {
     const contracts =
       await this.ledger
         .queryActiveContracts(
@@ -640,7 +1064,61 @@ export class HttpCantonOfferProvider
       );
     }
 
+    return contract;
+  }
+
+  private async findLatestContractId(
+    party:
+      CantonPartyId,
+
+    templateName:
+      CantonDealTemplateName,
+
+    dealId:
+      string,
+
+    missingMessage:
+      string,
+  ): Promise<CantonContractId> {
+    const contract =
+      await this
+        .findLatestContract(
+          party,
+          templateName,
+          dealId,
+          missingMessage,
+        );
+
     return contract.contractId;
+  }
+
+  private async findHoldingContract(
+    party:
+      CantonPartyId,
+
+    holdingId:
+      string,
+  ) {
+    const contracts =
+      await this.ledger
+        .queryActiveContracts(
+          party,
+        );
+
+    return contracts
+      .filter(
+        (candidate) =>
+          isCantonDealTemplate(
+            candidate.templateId,
+            "CashHolding",
+          ) &&
+          readString(
+            candidate.createArgument,
+            "holdingId",
+          ) ===
+            holdingId,
+      )
+      .at(-1);
   }
 }
 
@@ -658,6 +1136,12 @@ function readTerms(
     readString(
       value,
       "buyer",
+    );
+
+  const custodian =
+    readOptionalString(
+      value,
+      "custodian",
     );
 
   return {
@@ -714,6 +1198,10 @@ function readTerms(
         value,
         "expiresAt",
       ),
+
+    ...(custodian === undefined
+      ? {}
+      : { custodian }),
   };
 }
 
@@ -768,6 +1256,22 @@ function readString(
   }
 
   return result;
+}
+
+function requireField(
+  value: string,
+  label: string,
+): string {
+  const clean =
+    value.trim();
+
+  if (!clean) {
+    throw new Error(
+      `VINSS ${label} is required`,
+    );
+  }
+
+  return clean;
 }
 
 function requireHash(

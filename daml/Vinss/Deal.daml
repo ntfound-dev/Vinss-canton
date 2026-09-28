@@ -1,5 +1,27 @@
 module Vinss.Deal where
 
+import Vinss.Custody
+
+-- A deal uses Canton escrow when its proposal names a custodian.
+-- Without one, the deal keeps the original flow (no on-ledger funds).
+usesEscrow : Optional Party -> Bool
+usesEscrow custodian =
+  case custodian of
+    None -> False
+    Some _ -> True
+
+-- The custodian holds value on behalf of both parties, so it must be
+-- neither of them.
+custodianIsIndependent : Party -> Party -> Optional Party -> Bool
+custodianIsIndependent seller buyer custodian =
+  case custodian of
+    None -> True
+    Some agreedCustodian -> agreedCustodian /= seller && agreedCustodian /= buyer
+
+-- Escrow money flow: the reviewer (who approves the work) is the payer and
+-- the fulfiller (who delivers it) is the payee. With the default roles this
+-- is buyer -> seller, and it stays coherent when the roles are swapped.
+
 template DealProposal
   with
     dealId : Text
@@ -13,6 +35,7 @@ template DealProposal
     instrumentId : Text
     expiresAt : Time
     createdAt : Time
+    custodian : Optional Party
   where
     signatory seller
     observer buyer
@@ -33,6 +56,8 @@ template DealProposal
       instrumentId /= ""
       &&
       expiresAt > createdAt
+      &&
+      custodianIsIndependent seller buyer custodian
 
     choice Accept : ContractId DealAgreement
       controller buyer
@@ -53,6 +78,7 @@ template DealProposal
           instrumentId
           expiresAt
           acceptedAt = now
+          custodian
 
     choice Reject : ()
       controller buyer
@@ -73,6 +99,132 @@ template DealAgreement
     instrumentId : Text
     expiresAt : Time
     acceptedAt : Time
+    custodian : Optional Party
+  where
+    signatory seller, buyer
+
+    ensure
+      seller /= buyer
+      &&
+      fulfiller /= reviewer
+      &&
+      (fulfiller == seller || fulfiller == buyer)
+      &&
+      (reviewer == seller || reviewer == buyer)
+      &&
+      termsHash /= ""
+      &&
+      amount /= ""
+      &&
+      instrumentId /= ""
+      &&
+      custodianIsIndependent seller buyer custodian
+
+    -- Original flow, kept for deals without escrow. Deals that name a
+    -- custodian must go through FundEscrow first.
+    choice SubmitFulfillment : ContractId DealFulfillment
+      with
+        fulfillmentHash : Text
+      controller fulfiller
+      do
+        assert (fulfillmentHash /= "")
+
+        assertMsg
+          "Fund the escrow before submitting fulfillment"
+          (not (usesEscrow custodian))
+
+        now <- getTime
+
+        create DealFulfillment with
+          dealId
+          conversationId
+          seller
+          buyer
+          fulfiller
+          reviewer
+          termsHash
+          amount
+          instrumentId
+          expiresAt
+          acceptedAt
+          fulfillmentHash
+          round = 0
+          submittedAt = now
+          lockedHoldingCid = None
+
+    -- The payer locks a holding issued by the agreed custodian. The lock and
+    -- the escrow are created in one transaction, so a deal is funded if and
+    -- only if the holding is locked.
+    choice FundEscrow : ContractId DealEscrow
+      with
+        holdingCid : ContractId CashHolding
+      controller reviewer
+      do
+        case custodian of
+          None ->
+            abort "This deal does not use Canton escrow"
+
+          Some agreedCustodian -> do
+            holding <- fetch holdingCid
+
+            assertMsg
+              "Holding must be issued by the agreed custodian"
+              (holding.custodian == agreedCustodian)
+
+            assertMsg
+              "Holding must belong to the payer (reviewer)"
+              (holding.owner == reviewer)
+
+            assertMsg
+              "Holding amount must match the deal amount"
+              (holding.amount == amount)
+
+            assertMsg
+              "Holding instrument must match the deal instrument"
+              (holding.instrumentId == instrumentId)
+
+            lockedCid <-
+              exercise holdingCid LockForDeal with
+                dealId = dealId
+                payee = fulfiller
+
+            now <- getTime
+
+            create DealEscrow with
+              dealId
+              conversationId
+              seller
+              buyer
+              fulfiller
+              reviewer
+              custodian = agreedCustodian
+              termsHash
+              amount
+              instrumentId
+              expiresAt
+              acceptedAt
+              lockedHoldingCid = lockedCid
+              fundedAt = now
+
+
+-- Funded deal: the payer's holding is locked and cannot be released without
+-- an approved fulfillment (see FulfillmentApproval.Settle).
+template DealEscrow
+  with
+    dealId : Text
+    conversationId : Text
+    seller : Party
+    buyer : Party
+    fulfiller : Party
+    reviewer : Party
+    custodian : Party
+    termsHash : Text
+    amount : Text
+    instrumentId : Text
+    expiresAt : Time
+    acceptedAt : Time
+    lockedHoldingCid : ContractId LockedHolding
+    fundedAt : Time
   where
     signatory seller, buyer
 
@@ -91,7 +243,9 @@ template DealAgreement
       &&
       instrumentId /= ""
 
-    choice SubmitFulfillment : ContractId DealFulfillment
+    -- Named differently from DealAgreement.SubmitFulfillment because choice
+    -- names are unique within a Daml module.
+    choice SubmitFundedFulfillment : ContractId DealFulfillment
       with
         fulfillmentHash : Text
       controller fulfiller
@@ -115,6 +269,7 @@ template DealAgreement
           fulfillmentHash
           round = 0
           submittedAt = now
+          lockedHoldingCid = Some lockedHoldingCid
 
 
 template DealFulfillment
@@ -133,6 +288,7 @@ template DealFulfillment
     fulfillmentHash : Text
     round : Int
     submittedAt : Time
+    lockedHoldingCid : Optional (ContractId LockedHolding)
   where
     signatory fulfiller
     observer reviewer
@@ -163,6 +319,7 @@ template DealFulfillment
           round
           submittedAt
           approvedAt = now
+          lockedHoldingCid
 
     choice RequestRevision : ContractId DealRevisionRequest
       with
@@ -189,6 +346,7 @@ template DealFulfillment
           reviewHash
           round
           requestedAt = now
+          lockedHoldingCid
 
 
 template DealRevisionRequest
@@ -208,6 +366,7 @@ template DealRevisionRequest
     reviewHash : Text
     round : Int
     requestedAt : Time
+    lockedHoldingCid : Optional (ContractId LockedHolding)
   where
     signatory reviewer
     observer fulfiller
@@ -245,6 +404,7 @@ template DealRevisionRequest
           fulfillmentHash
           round = round + 1
           submittedAt = now
+          lockedHoldingCid
 
 
 template FulfillmentApproval
@@ -262,9 +422,64 @@ template FulfillmentApproval
     round : Int
     submittedAt : Time
     approvedAt : Time
+    lockedHoldingCid : Optional (ContractId LockedHolding)
   where
     signatory reviewer
     observer fulfiller
+
+    ensure
+      fulfiller /= reviewer
+      &&
+      fulfillmentHash /= ""
+      &&
+      round >= 0
+
+    -- The payee claims the escrowed funds after approval. The payer's
+    -- authority for the release comes from signing this approval, so the
+    -- funds can only move through an approved fulfillment.
+    choice Settle : ContractId SettlementReceipt
+      controller fulfiller
+      do
+        case lockedHoldingCid of
+          None ->
+            abort "This deal has no Canton escrow to settle"
+
+          Some lockedCid -> do
+            releasedCid <- exercise lockedCid ReleaseToPayee
+
+            now <- getTime
+
+            create SettlementReceipt with
+              dealId
+              conversationId
+              seller
+              buyer
+              fulfiller
+              reviewer
+              amount
+              instrumentId
+              fulfillmentHash
+              round
+              releasedHoldingCid = releasedCid
+              settledAt = now
+
+
+template SettlementReceipt
+  with
+    dealId : Text
+    conversationId : Text
+    seller : Party
+    buyer : Party
+    fulfiller : Party
+    reviewer : Party
+    amount : Text
+    instrumentId : Text
+    fulfillmentHash : Text
+    round : Int
+    releasedHoldingCid : ContractId CashHolding
+    settledAt : Time
+  where
+    signatory fulfiller, reviewer
 
     ensure
       fulfiller /= reviewer

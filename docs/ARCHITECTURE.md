@@ -43,6 +43,57 @@ Examples:
 
 Do not write casual chat messages to Canton.
 
+## Escrow (Canton settlement rail)
+
+A deal uses Canton escrow when its proposal names a `custodian`. Deals without
+one keep the original flow and have nothing to settle on Canton.
+
+```text
+DealProposal --Accept--> DealAgreement --FundEscrow--> DealEscrow
+                                                          |
+                                             SubmitFundedFulfillment
+                                                          v
+                        RequestRevision <--- DealFulfillment ---Approve---> FulfillmentApproval
+                        (DealRevisionRequest --SubmitRevision--^)                   |
+                                                                                  Settle
+                                                                                    v
+                                                                          SettlementReceipt
+```
+
+Roles and money flow:
+- The reviewer (who approves the work) is the payer and the fulfiller (who
+  delivers it) is the payee. With the default roles this is buyer -> seller and
+  it stays correct for swapped roles such as freelance offers.
+- The custodian holds the backing value off-ledger and is neither party.
+  It issues a `CashHolding` (an on-ledger acknowledgement, `Vinss.Custody`) to
+  the payer. The amount and instrument must match the deal exactly; holdings are
+  per-deal deposits, there is no split or merge.
+- `FundEscrow` locks that holding into a `LockedHolding` and creates the
+  `DealEscrow` in one transaction, so a deal is funded if and only if the
+  holding is locked.
+- `Settle` is claimed by the payee after approval. The release needs both the
+  payer's and the payee's authority: the payer's comes from having signed the
+  `FulfillmentApproval`, so funds can only move through an approved
+  fulfillment. Neither party can release alone.
+
+Privacy:
+- The custodian only sees holdings (payer, payee, amount, instrument, deal id).
+  It does not see deal terms hashes, fulfillment hashes or conversation ids.
+- Work details and chat stay in OpenMLS; Canton only carries hashes and state.
+
+Trust model and known gaps:
+- Holdings are custodian IOUs. As signatory the custodian can always archive
+  its own contracts, so both parties must agree on the custodian in the
+  proposal, and the custodian must really hold the backing value.
+- There is no on-ledger refund, dispute or fulfillment deadline yet. Funds stay
+  locked until the payer approves; anything else is a custodian decision made
+  off-ledger. This needs a product decision before real funds are used.
+- `DealFulfillment`, `DealRevisionRequest` and `FulfillmentApproval` are still
+  signed by a single party, as before. Co-signing them (seller and buyer) would
+  guarantee they can only be created through the workflow.
+- The UI does not use escrow yet: it never sets `custodian`, so deals created
+  from the frontend keep the original flow.
+
 ## Group lifecycle
 
 ```text

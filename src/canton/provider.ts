@@ -1,5 +1,6 @@
 import type {
   CantonContractId,
+  CantonHoldingTerms,
   CantonPartyId,
   DealAgreement,
   DealTerms,
@@ -25,10 +26,37 @@ export interface CantonOfferProvider {
   ): Promise<void>;
 }
 
-export interface CantonFulfillmentProvider {
-  submitFulfillment(
+export interface CantonEscrowProvider {
+  /**
+   * Custodian only: acknowledges a deposit as an on-ledger holding.
+   * Returns the CashHolding contract id.
+   */
+  issueHolding(
+    actingParty: CantonPartyId,
+    holding: CantonHoldingTerms,
+  ): Promise<CantonContractId>;
+
+  /**
+   * Payer (reviewer) locks a holding into the deal. Consumes the
+   * DealAgreement and returns the DealEscrow contract id.
+   */
+  fundEscrow(
     actingParty: CantonPartyId,
     agreementContractId:
+      CantonContractId,
+    holdingContractId:
+      CantonContractId,
+  ): Promise<CantonContractId>;
+}
+
+export interface CantonFulfillmentProvider {
+  /**
+   * `sourceContractId` is the DealEscrow of a funded deal, or the
+   * DealAgreement of a deal without Canton escrow.
+   */
+  submitFulfillment(
+    actingParty: CantonPartyId,
+    sourceContractId:
       CantonContractId,
     fulfillmentHash: string,
   ): Promise<CantonContractId>;
@@ -58,16 +86,22 @@ export interface CantonFulfillmentProvider {
  * Full VINSS Canton business workflow.
  *
  * Offer/Agreement and Fulfillment are explicit.
- * Economic settlement remains a separate product layer.
+ * Deals that name a custodian settle on-ledger through escrow; for other
+ * deals economic settlement remains a separate product layer.
  */
 export interface CantonDealProvider
   extends
     CantonOfferProvider,
+    CantonEscrowProvider,
     CantonFulfillmentProvider
 {
+  /**
+   * Payee (fulfiller) claims the escrowed funds from an approved
+   * fulfillment.
+   */
   settle(
     actingParty: CantonPartyId,
-    agreementContractId:
+    approvalContractId:
       CantonContractId,
   ): Promise<SettlementReceipt>;
 }
