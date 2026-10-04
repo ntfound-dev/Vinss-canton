@@ -6,10 +6,8 @@ source: daml
 dependencies:
   - daml-prim
   - daml-stdlib
-  # Canton Network Token Standard (CIP-56), for Canton Coin escrow.
-  # Interface-only packages: no Amulet/CC economic logic, just the shared
-  # Holding/Allocation/Metadata Daml interfaces. Not fetched automatically --
-  # see docs/CANTON_COIN_SETUP.md to vendor these before `dpm build`.
+
+data-dependencies:
   - deps/splice-api-token-metadata-v1.dar
   - deps/splice-api-token-holding-v1.dar
   - deps/splice-api-token-allocation-v1.dar
