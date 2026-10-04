@@ -3,8 +3,8 @@ import type {
 } from "./ledger-client.js";
 
 import type {
-  CantonChoiceContext,
   CantonDealProvider,
+  CantonSettlementContext,
 } from "./provider.js";
 
 import type {
@@ -701,7 +701,7 @@ export class HttpCantonOfferProvider
       CantonContractId,
 
     choiceContext:
-      CantonChoiceContext,
+      CantonSettlementContext,
   ): Promise<SettlementReceipt> {
     const approval =
       await this.requireContract(
@@ -765,16 +765,19 @@ export class HttpCantonOfferProvider
 
           choiceArgument: {
             extraArgs: {
-              context: {
-                values:
-                  choiceContext,
-              },
+              context:
+                choiceContext
+                  .choiceContextData,
 
               meta: {
                 values: {},
               },
             },
           },
+
+          disclosedContracts:
+            choiceContext
+              .disclosedContracts,
         });
 
     const receipt =

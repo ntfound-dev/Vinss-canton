@@ -7,6 +7,7 @@ import type {
   CantonAuthenticatedIdentity,
   CantonCreatedContract,
   CantonExercise,
+  CantonInterfaceContract,
   CantonLedgerClient,
   CantonSubmissionResult,
   CantonSubmitCreates,
@@ -257,6 +258,11 @@ export class HttpCantonLedgerClient
                 },
               },
             ],
+
+            ...disclosureFields(
+              input
+                .disclosedContracts,
+            ),
           }),
         },
       );
@@ -271,6 +277,86 @@ export class HttpCantonLedgerClient
             .completionOffset,
         ),
     };
+  }
+
+  async queryInterfaceContracts(
+    party: CantonPartyId,
+    interfaceId: string,
+  ): Promise<
+    readonly CantonInterfaceContract[]
+  > {
+    const activeAtOffset =
+      await this.getLedgerEnd();
+
+    if (
+      activeAtOffset === 0n
+    ) {
+      return [];
+    }
+
+    const responses =
+      await this.requestJson<
+        readonly unknown[]
+      >(
+        "/v2/state/active-contracts",
+        {
+          method: "POST",
+
+          body: JSON.stringify({
+            activeAtOffset:
+              toSafeNumber(
+                activeAtOffset,
+              ),
+
+            eventFormat: {
+              filtersByParty: {
+                [party]: {
+                  cumulative: [
+                    {
+                      identifierFilter: {
+                        InterfaceFilter: {
+                          value: {
+                            interfaceId,
+                            includeInterfaceView:
+                              true,
+                            includeCreatedEventBlob:
+                              true,
+                          },
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+
+              verbose: false,
+            },
+          }),
+        },
+      );
+
+    const contracts:
+      CantonInterfaceContract[] =
+      [];
+
+    for (
+      const response
+      of responses
+    ) {
+      const contract =
+        extractInterfaceContract(
+          response,
+          interfaceId,
+        );
+
+      if (contract) {
+        contracts.push(
+          contract,
+        );
+      }
+    }
+
+    return contracts;
   }
 
   async queryActiveContracts(
@@ -541,6 +627,150 @@ function wildcardFilters():
       },
     ],
   };
+}
+
+function disclosureFields(
+  contracts:
+    readonly import("./ledger-client.js").CantonDisclosedContract[]
+    | undefined,
+): Record<string, unknown> {
+  if (
+    !contracts ||
+    contracts.length === 0
+  ) {
+    return {};
+  }
+
+  const synchronizerId =
+    contracts[0]
+      ?.synchronizerId;
+
+  if (!synchronizerId) {
+    throw new Error(
+      "Canton disclosed contract is missing synchronizerId",
+    );
+  }
+
+  if (
+    contracts.some(
+      (contract) =>
+        contract.synchronizerId !==
+        synchronizerId,
+    )
+  ) {
+    throw new Error(
+      "Canton disclosed contracts span multiple synchronizers",
+    );
+  }
+
+  return {
+    disclosedContracts:
+      contracts,
+
+    synchronizerId,
+  };
+}
+
+function extractInterfaceContract(
+  value: unknown,
+  interfaceId: string,
+):
+  | CantonInterfaceContract
+  | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const entry =
+    value.contractEntry;
+
+  if (!isRecord(entry)) {
+    return undefined;
+  }
+
+  const active =
+    unwrapVariant(
+      entry.JsActiveContract,
+    );
+
+  if (!active) {
+    return undefined;
+  }
+
+  const raw =
+    unwrapVariant(
+      active.createdEvent,
+    );
+
+  if (
+    !raw ||
+    typeof raw.contractId !==
+      "string" ||
+    typeof raw.templateId !==
+      "string" ||
+    !isRecord(
+      raw.createArgument,
+    ) ||
+    !Array.isArray(
+      raw.interfaceViews,
+    )
+  ) {
+    return undefined;
+  }
+
+  const interfaceView =
+    raw.interfaceViews.find(
+      (candidate) =>
+        isRecord(candidate) &&
+        candidate.interfaceId ===
+          interfaceId &&
+        isRecord(
+          candidate.viewValue,
+        ),
+    );
+
+  if (
+    !isRecord(
+      interfaceView,
+    ) ||
+    !isRecord(
+      interfaceView.viewValue,
+    )
+  ) {
+    return undefined;
+  }
+
+  const result:
+    CantonInterfaceContract = {
+      contractId:
+        raw.contractId,
+
+      templateId:
+        raw.templateId,
+
+      offset:
+        toBigIntOffset(
+          raw.offset,
+        ),
+
+      createArgument:
+        raw.createArgument,
+
+      interfaceId,
+
+      interfaceView:
+        interfaceView.viewValue,
+    };
+
+  if (
+    typeof raw.packageName ===
+      "string"
+  ) {
+    result.packageName =
+      raw.packageName;
+  }
+
+  return result;
 }
 
 function extractActiveContract(

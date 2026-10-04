@@ -819,7 +819,14 @@ describe(
             .settle(
               seller,
               approvalCid,
-              { note: "test" },
+              {
+                choiceContextData: {
+                  values: {
+                    note: "test",
+                  },
+                },
+                disclosedContracts: [],
+              },
             );
 
         expect(

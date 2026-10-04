@@ -1,4 +1,8 @@
 import type {
+  CantonDisclosedContract,
+} from "./ledger-client.js";
+
+import type {
   CantonContractId,
   CantonPartyId,
   DealAgreement,
@@ -16,6 +20,14 @@ export type CantonChoiceContext =
   Readonly<
     Record<string, unknown>
   >;
+
+export interface CantonSettlementContext {
+  choiceContextData:
+    CantonChoiceContext;
+
+  disclosedContracts:
+    readonly CantonDisclosedContract[];
+}
 
 export interface CantonOfferProvider {
   createProposal(
@@ -102,15 +114,14 @@ export interface CantonDealProvider
   /**
    * Payee (fulfiller) claims the escrowed funds from an approved
    * fulfillment, by exercising the Allocation's own
-   * Allocation_ExecuteTransfer. `choiceContext` is the registry's off-ledger
-   * choice context for that exercise (see CantonChoiceContext); the caller
-   * is responsible for fetching it from the registry's API.
+   * Allocation_ExecuteTransfer. The caller supplies both the registry's
+   * opaque choiceContextData and any disclosed contracts returned alongside it.
    */
   settle(
     actingParty: CantonPartyId,
     approvalContractId:
       CantonContractId,
     choiceContext:
-      CantonChoiceContext,
+      CantonSettlementContext,
   ): Promise<SettlementReceipt>;
 }

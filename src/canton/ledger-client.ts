@@ -15,6 +15,13 @@ export interface CantonSubmitCreates {
     readonly CantonCreate[];
 }
 
+export interface CantonDisclosedContract {
+  templateId: string;
+  contractId: string;
+  createdEventBlob: string;
+  synchronizerId: string;
+}
+
 export interface CantonExercise {
   actingParty: CantonPartyId;
   commandId: string;
@@ -23,6 +30,9 @@ export interface CantonExercise {
   choice: string;
   choiceArgument:
     Record<string, unknown>;
+
+  disclosedContracts?:
+    readonly CantonDisclosedContract[];
 }
 
 export interface CantonSubmissionResult {
@@ -37,6 +47,14 @@ export interface CantonCreatedContract {
   createArgument:
     Record<string, unknown>;
   packageName?: string;
+}
+
+export interface CantonInterfaceContract
+  extends CantonCreatedContract
+{
+  interfaceId: string;
+  interfaceView:
+    Record<string, unknown>;
 }
 
 export interface CantonActiveContractSnapshot {
@@ -71,6 +89,13 @@ export interface CantonLedgerClient {
     party: CantonPartyId,
   ): Promise<
     readonly CantonCreatedContract[]
+  >;
+
+  queryInterfaceContracts?(
+    party: CantonPartyId,
+    interfaceId: string,
+  ): Promise<
+    readonly CantonInterfaceContract[]
   >;
 
   queryActiveContractsSnapshot(
