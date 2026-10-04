@@ -1,5 +1,6 @@
 module Vinss.Deal where
 
+import DA.Text qualified as Text
 import DA.TextMap qualified as TextMap
 import Splice.Api.Token.MetadataV1 qualified as Meta
 import Splice.Api.Token.HoldingV1 qualified as Holding
@@ -191,6 +192,19 @@ template DealAgreement
             assertMsg
               "Allocation instrument admin must match the agreed registry"
               (leg.instrumentId.admin == admin)
+
+            assertMsg
+              "Allocation instrument id must match the deal instrument"
+              (leg.instrumentId.id == instrumentId)
+
+            case Text.parseDecimal amount of
+              None ->
+                abort "Deal amount must be a valid decimal"
+
+              Some expectedAmount ->
+                assertMsg
+                  "Allocation amount must match the deal amount"
+                  (leg.amount == expectedAmount)
 
             assertMsg
               "Allocation must be for this deal"

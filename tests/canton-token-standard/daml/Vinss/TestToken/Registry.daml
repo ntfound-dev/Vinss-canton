@@ -1,0 +1,131 @@
+module Vinss.TestToken.Registry where
+
+import Splice.Api.Token.MetadataV1
+import Splice.Api.Token.HoldingV1
+import Splice.Api.Token.AllocationV1
+import Splice.Api.Token.AllocationInstructionV1
+
+import Vinss.TestToken.Holding
+import Vinss.TestToken.Allocation
+
+template TestRegistry
+  with
+    admin : Party
+    observers : [Party]
+    supportedInstruments : [Text]
+  where
+    signatory admin
+    observer observers
+
+    nonconsuming choice MintForTest : ContractId TestHolding
+      with
+        owner : Party
+        instrumentId : Text
+        amount : Decimal
+      controller admin, owner
+      do
+        assertMsg "Instrument is not supported"
+          (instrumentId `elem` supportedInstruments)
+
+        create TestHolding with
+          admin
+          owner
+          instrumentId = InstrumentId with
+            admin
+            id = instrumentId
+          amount
+          meta = emptyMetadata
+
+    interface instance AllocationFactory for TestRegistry where
+      view = AllocationFactoryView with
+        admin
+        meta = emptyMetadata
+
+      allocationFactory_allocateImpl _selfCid arg = do
+        let spec = arg.allocation
+        let leg = spec.transferLeg
+        let settlement = spec.settlement
+
+        assertMsg "expectedAdmin does not match registry"
+          (arg.expectedAdmin == admin)
+        assertMsg "Allocation amount must be positive"
+          (leg.amount > 0.0)
+        assertMsg "Allocation instrument admin must match registry"
+          (leg.instrumentId.admin == admin)
+        assertMsg "Instrument is not supported"
+          (leg.instrumentId.id `elem` supportedInstruments)
+        assertMsg "Allocation input holdings must not be empty"
+          (not $ null arg.inputHoldingCids)
+
+        now <- getTime
+
+        assertMsg "requestedAt must not be in the future"
+          (arg.requestedAt <= now)
+        assertMsg "allocateBefore must be in the future"
+          (settlement.allocateBefore > now)
+        assertMsg "settleBefore must be after allocateBefore"
+          (settlement.settleBefore > settlement.allocateBefore)
+
+        amounts <- forA arg.inputHoldingCids $ \holdingCid -> do
+          holding <- fetch holdingCid
+          let holdingView = view holding
+
+          assertMsg "Holding owner must be allocation sender"
+            (holdingView.owner == leg.sender)
+          assertMsg "Holding instrument must match allocation"
+            (holdingView.instrumentId == leg.instrumentId)
+          assertMsg "Locked holding cannot fund allocation"
+            (holdingView.lock == None)
+
+          archive holdingCid
+          pure holdingView.amount
+
+        let totalInput = sum amounts
+
+        assertMsg "Insufficient funds for allocation"
+          (totalInput >= leg.amount)
+
+        lockedCid <- create TestLockedHolding with
+          admin
+          owner = leg.sender
+          instrumentId = leg.instrumentId
+          amount = leg.amount
+          lock = Lock with
+            holders = [admin]
+            expiresAt = Some settlement.settleBefore
+            expiresAfter = None
+            context = Some "VINSS CIP-56 allocation"
+          extraObservers = [settlement.executor, leg.receiver]
+          meta = emptyMetadata
+
+        allocationCid <- create TestAllocation with
+          admin
+          allocation = spec
+          lockedHoldingCid = lockedCid
+
+        senderChangeCids <-
+          if totalInput > leg.amount
+            then do
+              changeCid <- create TestHolding with
+                admin
+                owner = leg.sender
+                instrumentId = leg.instrumentId
+                amount = totalInput - leg.amount
+                meta = emptyMetadata
+              pure [toInterfaceContractId @Holding changeCid]
+            else
+              pure []
+
+        pure AllocationInstructionResult with
+          output = AllocationInstructionResult_Completed with
+            allocationCid = toInterfaceContractId @Allocation allocationCid
+          senderChangeCids
+          meta = emptyMetadata
+
+      allocationFactory_publicFetchImpl _selfCid arg = do
+        assertMsg "expectedAdmin does not match registry"
+          (arg.expectedAdmin == admin)
+
+        pure AllocationFactoryView with
+          admin
+          meta = emptyMetadata

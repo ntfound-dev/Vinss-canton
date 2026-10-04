@@ -126,6 +126,11 @@ jobs:
       - name: Build VINSS DAR
         run: dpm build
 
+      - name: Build Token Standard test DAR
+        run: |
+          cd tests/canton-token-standard
+          dpm build
+
       - name: Start real Canton sandbox
         shell: bash
         run: |
@@ -139,6 +144,15 @@ jobs:
           )"
 
           test -n "$DAR"
+
+          TEST_DAR="$(
+            find tests/canton-token-standard/.daml/dist \
+              -type f \
+              -name '*.dar' \
+              | head -n 1
+          )"
+
+          test -n "$TEST_DAR"
 
           MAIN_PACKAGE_ID="$(
             dpm damlc inspect-dar \
@@ -226,6 +240,20 @@ jobs:
               'content-type: application/octet-stream' \
             --data-binary \
               @"$DAR" \
+            "http://127.0.0.1:7575/v2/packages?vetAllPackages=true&synchronizerId=${ENCODED_SYNC}"
+
+          echo
+
+          echo \
+            "Uploading and vetting Token Standard test registry DAR..."
+
+          curl \
+            -fsS \
+            -X POST \
+            -H \
+              'content-type: application/octet-stream' \
+            --data-binary \
+              @"$TEST_DAR" \
             "http://127.0.0.1:7575/v2/packages?vetAllPackages=true&synchronizerId=${ENCODED_SYNC}"
 
           echo

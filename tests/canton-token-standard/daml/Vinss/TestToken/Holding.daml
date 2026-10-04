@@ -1,0 +1,45 @@
+module Vinss.TestToken.Holding where
+
+import Splice.Api.Token.HoldingV1
+import Splice.Api.Token.MetadataV1
+
+template TestHolding
+  with
+    admin : Party
+    owner : Party
+    instrumentId : InstrumentId
+    amount : Decimal
+    meta : Metadata
+  where
+    signatory admin, owner
+    ensure amount > 0.0
+
+    interface instance Holding for TestHolding where
+      view = HoldingView with
+        owner
+        instrumentId
+        amount
+        lock = None
+        meta
+
+template TestLockedHolding
+  with
+    admin : Party
+    owner : Party
+    instrumentId : InstrumentId
+    amount : Decimal
+    lock : Lock
+    extraObservers : [Party]
+    meta : Metadata
+  where
+    signatory admin, owner
+    observer extraObservers
+    ensure amount > 0.0
+
+    interface instance Holding for TestLockedHolding where
+      view = HoldingView with
+        owner
+        instrumentId
+        amount
+        lock = Some lock
+        meta
