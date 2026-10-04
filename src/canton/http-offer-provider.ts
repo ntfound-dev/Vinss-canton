@@ -3,12 +3,12 @@ import type {
 } from "./ledger-client.js";
 
 import type {
+  CantonChoiceContext,
   CantonDealProvider,
 } from "./provider.js";
 
 import type {
   CantonContractId,
-  CantonHoldingTerms,
   CantonPartyId,
   DealAgreement,
   DealTerms,
@@ -86,15 +86,15 @@ export class HttpCantonOfferProvider
     }
 
     if (
-      terms.custodian !==
+      terms.instrumentAdmin !==
         undefined &&
-      (terms.custodian ===
+      (terms.instrumentAdmin ===
         terms.seller ||
-        terms.custodian ===
+        terms.instrumentAdmin ===
           terms.buyer)
     ) {
       throw new Error(
-        "VINSS custodian must be independent of the deal parties",
+        "VINSS instrumentAdmin must be independent of the deal parties",
       );
     }
 
@@ -119,8 +119,9 @@ export class HttpCantonOfferProvider
               ...terms,
               fulfiller,
               reviewer,
-              custodian:
-                terms.custodian ??
+              instrumentAdmin:
+                terms
+                  .instrumentAdmin ??
                 null,
               createdAt,
             },
@@ -283,106 +284,6 @@ export class HttpCantonOfferProvider
       });
   }
 
-  async issueHolding(
-    actingParty:
-      CantonPartyId,
-
-    holding:
-      CantonHoldingTerms,
-  ): Promise<CantonContractId> {
-    const holdingId =
-      requireField(
-        holding.holdingId,
-        "holding id",
-      );
-
-    const owner =
-      requireField(
-        holding.owner,
-        "holding owner",
-      );
-
-    const instrumentId =
-      requireField(
-        holding.instrumentId,
-        "holding instrument",
-      );
-
-    const amount =
-      holding.amount.trim();
-
-    if (
-      !/^\d+(?:\.\d+)?$/.test(
-        amount,
-      ) ||
-      Number(amount) <= 0
-    ) {
-      throw new Error(
-        "VINSS holding amount must be greater than zero",
-      );
-    }
-
-    if (owner === actingParty) {
-      throw new Error(
-        "VINSS custodian cannot issue a holding to itself",
-      );
-    }
-
-    if (
-      await this
-        .findHoldingContract(
-          actingParty,
-          holdingId,
-        )
-    ) {
-      throw new Error(
-        `VINSS CashHolding already issued: ${holdingId}`,
-      );
-    }
-
-    await this.ledger
-      .submitCreates({
-        actingParty,
-
-        commandId:
-          `holding-issue-${crypto.randomUUID()}`,
-
-        creates: [
-          {
-            templateId:
-              cantonDealTemplates
-                .cashHolding,
-
-            createArguments: {
-              holdingId,
-
-              custodian:
-                actingParty,
-
-              owner,
-              amount,
-              instrumentId,
-            },
-          },
-        ],
-      });
-
-    const issued =
-      await this
-        .findHoldingContract(
-          actingParty,
-          holdingId,
-        );
-
-    if (!issued) {
-      throw new Error(
-        "VINSS CashHolding was not found after issue",
-      );
-    }
-
-    return issued.contractId;
-  }
-
   async fundEscrow(
     actingParty:
       CantonPartyId,
@@ -390,7 +291,7 @@ export class HttpCantonOfferProvider
     agreementContractId:
       CantonContractId,
 
-    holdingContractId:
+    allocationContractId:
       CantonContractId,
   ): Promise<CantonContractId> {
     const agreement =
@@ -406,13 +307,16 @@ export class HttpCantonOfferProvider
         "dealId",
       );
 
-    const custodian =
+    const instrumentAdmin =
       readOptionalString(
         agreement.createArgument,
-        "custodian",
+        "instrumentAdmin",
       );
 
-    if (custodian === undefined) {
+    if (
+      instrumentAdmin ===
+      undefined
+    ) {
       throw new Error(
         "This VINSS deal does not use Canton escrow",
       );
@@ -434,65 +338,9 @@ export class HttpCantonOfferProvider
       );
     }
 
-    const holding =
-      await this.requireContract(
-        actingParty,
-        holdingContractId,
-        "CashHolding",
-      );
-
-    if (
-      readString(
-        holding.createArgument,
-        "custodian",
-      ) !== custodian
-    ) {
-      throw new Error(
-        "VINSS holding was not issued by the agreed custodian",
-      );
-    }
-
-    if (
-      readString(
-        holding.createArgument,
-        "owner",
-      ) !== actingParty
-    ) {
-      throw new Error(
-        "VINSS holding does not belong to the payer",
-      );
-    }
-
-    if (
-      readString(
-        holding.createArgument,
-        "amount",
-      ) !==
-      readString(
-        agreement.createArgument,
-        "amount",
-      )
-    ) {
-      throw new Error(
-        "VINSS holding amount must match the deal amount exactly",
-      );
-    }
-
-    if (
-      readString(
-        holding.createArgument,
-        "instrumentId",
-      ) !==
-      readString(
-        agreement.createArgument,
-        "instrumentId",
-      )
-    ) {
-      throw new Error(
-        "VINSS holding instrument must match the deal instrument",
-      );
-    }
-
+    // FundEscrow itself re-validates the Allocation (registry, dealId,
+    // sender, receiver, executor) on-ledger; this call only has to route
+    // to the right choice, not repeat that validation client-side.
     await this.ledger
       .submitExercise({
         actingParty,
@@ -511,8 +359,8 @@ export class HttpCantonOfferProvider
           "FundEscrow",
 
         choiceArgument: {
-          holdingCid:
-            holdingContractId,
+          allocationCid:
+            allocationContractId,
         },
       });
 
@@ -581,7 +429,7 @@ export class HttpCantonOfferProvider
       !funded &&
       readOptionalString(
         source.createArgument,
-        "custodian",
+        "instrumentAdmin",
       ) !== undefined
     ) {
       throw new Error(
@@ -851,6 +699,9 @@ export class HttpCantonOfferProvider
 
     approvalContractId:
       CantonContractId,
+
+    choiceContext:
+      CantonChoiceContext,
   ): Promise<SettlementReceipt> {
     const approval =
       await this.requireContract(
@@ -884,7 +735,7 @@ export class HttpCantonOfferProvider
     if (
       readOptionalString(
         approval.createArgument,
-        "lockedHoldingCid",
+        "lockedAllocationCid",
       ) === undefined
     ) {
       throw new Error(
@@ -892,6 +743,8 @@ export class HttpCantonOfferProvider
       );
     }
 
+    // `choiceContext` comes from the registry's off-ledger API (see
+    // docs/CANTON_COIN_SETUP.md) -- not fetched here.
     const submission =
       await this.ledger
         .submitExercise({
@@ -910,7 +763,18 @@ export class HttpCantonOfferProvider
           choice:
             "Settle",
 
-          choiceArgument: {},
+          choiceArgument: {
+            extraArgs: {
+              context: {
+                values:
+                  choiceContext,
+              },
+
+              meta: {
+                values: {},
+              },
+            },
+          },
         });
 
     const receipt =
@@ -1091,35 +955,6 @@ export class HttpCantonOfferProvider
 
     return contract.contractId;
   }
-
-  private async findHoldingContract(
-    party:
-      CantonPartyId,
-
-    holdingId:
-      string,
-  ) {
-    const contracts =
-      await this.ledger
-        .queryActiveContracts(
-          party,
-        );
-
-    return contracts
-      .filter(
-        (candidate) =>
-          isCantonDealTemplate(
-            candidate.templateId,
-            "CashHolding",
-          ) &&
-          readString(
-            candidate.createArgument,
-            "holdingId",
-          ) ===
-            holdingId,
-      )
-      .at(-1);
-  }
 }
 
 function readTerms(
@@ -1138,10 +973,10 @@ function readTerms(
       "buyer",
     );
 
-  const custodian =
+  const instrumentAdmin =
     readOptionalString(
       value,
-      "custodian",
+      "instrumentAdmin",
     );
 
   return {
@@ -1199,9 +1034,10 @@ function readTerms(
         "expiresAt",
       ),
 
-    ...(custodian === undefined
+    ...(instrumentAdmin ===
+      undefined
       ? {}
-      : { custodian }),
+      : { instrumentAdmin }),
   };
 }
 
@@ -1256,22 +1092,6 @@ function readString(
   }
 
   return result;
-}
-
-function requireField(
-  value: string,
-  label: string,
-): string {
-  const clean =
-    value.trim();
-
-  if (!clean) {
-    throw new Error(
-      `VINSS ${label} is required`,
-    );
-  }
-
-  return clean;
 }
 
 function requireHash(

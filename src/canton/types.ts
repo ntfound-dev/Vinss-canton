@@ -12,10 +12,13 @@ export interface DealTerms {
   fulfiller?: CantonPartyId;
   reviewer?: CantonPartyId;
 
-  // Party that holds the escrowed value. When set, the payer (reviewer) must
-  // lock a holding issued by this custodian (fundEscrow) before fulfillment.
-  // When omitted the deal keeps the original flow, without Canton escrow.
-  custodian?: CantonPartyId;
+  // The admin Party of the CIP-56 registry backing this deal's instrument
+  // (e.g. Amulet for Canton Coin, or a stablecoin issuer's registry for
+  // USDCx). When set, the payer (reviewer) must fund a matching Allocation
+  // (fundEscrow) before fulfillment. Omitted: the deal keeps the original
+  // flow, without Canton escrow. Not tied to one instrument -- which
+  // registry is just whichever admin party this names.
+  instrumentAdmin?: CantonPartyId;
 
   termsHash: string;
   amount: string;
@@ -27,17 +30,6 @@ export interface DealAgreement {
   contractId: CantonContractId;
   terms: DealTerms;
   acceptedAt: string;
-}
-
-/**
- * Custodian-issued acknowledgement that `owner` is entitled to `amount` of
- * `instrumentId`. The custodian holds the backing value off-ledger.
- */
-export interface CantonHoldingTerms {
-  holdingId: string;
-  owner: CantonPartyId;
-  amount: string;
-  instrumentId: string;
 }
 
 export interface SettlementReceipt {

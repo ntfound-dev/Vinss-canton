@@ -4,9 +4,6 @@ const PACKAGE =
 const MODULE =
   "Vinss.Deal";
 
-const CUSTODY_MODULE =
-  "Vinss.Custody";
-
 export const cantonDealTemplates = {
   proposal:
     `#${PACKAGE}:${MODULE}:DealProposal`,
@@ -28,12 +25,6 @@ export const cantonDealTemplates = {
 
   settlementReceipt:
     `#${PACKAGE}:${MODULE}:SettlementReceipt`,
-
-  cashHolding:
-    `#${PACKAGE}:${CUSTODY_MODULE}:CashHolding`,
-
-  lockedHolding:
-    `#${PACKAGE}:${CUSTODY_MODULE}:LockedHolding`,
 } as const;
 
 export type CantonDealTemplateName =
@@ -43,26 +34,7 @@ export type CantonDealTemplateName =
   | "DealFulfillment"
   | "DealRevisionRequest"
   | "FulfillmentApproval"
-  | "SettlementReceipt"
-  | "CashHolding"
-  | "LockedHolding";
-
-const templateModules: Readonly<
-  Record<
-    CantonDealTemplateName,
-    string
-  >
-> = {
-  DealProposal: MODULE,
-  DealAgreement: MODULE,
-  DealEscrow: MODULE,
-  DealFulfillment: MODULE,
-  DealRevisionRequest: MODULE,
-  FulfillmentApproval: MODULE,
-  SettlementReceipt: MODULE,
-  CashHolding: CUSTODY_MODULE,
-  LockedHolding: CUSTODY_MODULE,
-};
+  | "SettlementReceipt";
 
 export function isCantonDealTemplate(
   templateId: string,
@@ -70,6 +42,6 @@ export function isCantonDealTemplate(
     CantonDealTemplateName,
 ): boolean {
   return templateId.endsWith(
-    `:${templateModules[templateName]}:${templateName}`,
+    `:${MODULE}:${templateName}`,
   );
 }

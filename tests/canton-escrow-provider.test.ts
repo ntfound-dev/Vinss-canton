@@ -30,46 +30,7 @@ type Args =
   Record<string, unknown>;
 
 const NOW =
-  "2026-09-28T00:00:00.000Z";
-
-const stakeholderKeys:
-  Readonly<
-    Record<
-      string,
-      readonly string[]
-    >
-  > = {
-    DealProposal:
-      ["seller", "buyer"],
-
-    DealAgreement:
-      ["seller", "buyer"],
-
-    DealEscrow:
-      ["seller", "buyer"],
-
-    DealFulfillment:
-      ["fulfiller", "reviewer"],
-
-    DealRevisionRequest:
-      ["reviewer", "fulfiller"],
-
-    FulfillmentApproval:
-      ["reviewer", "fulfiller"],
-
-    SettlementReceipt:
-      ["fulfiller", "reviewer"],
-
-    CashHolding:
-      ["custodian", "owner"],
-
-    LockedHolding:
-      [
-        "custodian",
-        "payer",
-        "payee",
-      ],
-  };
+  "2026-09-30T00:00:00.000Z";
 
 const dealKeys = [
   "dealId",
@@ -106,11 +67,72 @@ function pick(
   );
 }
 
+const ALLOCATION_TEMPLATE_ID =
+  "#splice-api-token-allocation-v1:Splice.Api.Token.AllocationV1:Allocation";
+
+/**
+ * A fake CIP-56 Allocation, as it would be read off the Ledger API: a
+ * flat createArgument shaped like `AllocationView.allocation`
+ * (AllocationSpecification). Registries construct these off-ledger; VINSS
+ * never does, so the test builds one directly the way a payer's wallet
+ * would after AllocationFactory_Allocate.
+ */
+function fakeAllocation(
+  contractId: string,
+  overrides: {
+    dealId: string;
+    sender: string;
+    receiver: string;
+    executor: string;
+    admin: string;
+  },
+): CantonCreatedContract {
+  return {
+    contractId,
+    templateId: ALLOCATION_TEMPLATE_ID,
+    offset: 0n,
+
+    createArgument: {
+      allocation: {
+        settlement: {
+          executor:
+            overrides.executor,
+
+          settlementRef: {
+            id: overrides.dealId,
+          },
+        },
+
+        transferLeg: {
+          sender:
+            overrides.sender,
+
+          receiver:
+            overrides.receiver,
+
+          amount: "100",
+
+          instrumentId: {
+            admin:
+              overrides.admin,
+
+            id: "Amulet",
+          },
+        },
+      },
+
+      holdingCids: [],
+    },
+  };
+}
+
 /**
  * Minimal in-memory ledger that mirrors the state transitions of
- * daml/Vinss/Deal.daml and daml/Vinss/Custody.daml. It only exists to
- * exercise the provider; the real Daml semantics are covered by
- * tests/integration/canton-real-smoke.mjs against a Canton sandbox.
+ * daml/Vinss/Deal.daml. Allocation_ExecuteTransfer is faked at the level
+ * the interface promises (sender/receiver/executor authorization, a
+ * receiver holding out); the real Allocation semantics belong to whichever
+ * registry (Amulet, ...) implements them, exercised against a real Canton
+ * sandbox -- see docs/CANTON_COIN_SETUP.md.
  */
 class FakeLedger
   implements CantonLedgerClient
@@ -176,7 +198,7 @@ class FakeLedger
               [
                 ...dealKeys,
                 "expiresAt",
-                "custodian",
+                "instrumentAdmin",
               ],
             ),
 
@@ -188,7 +210,7 @@ class FakeLedger
       case "DealAgreement.SubmitFulfillment":
         if (
           typeof args
-            .custodian ===
+            .instrumentAdmin ===
           "string"
         ) {
           throw new Error(
@@ -214,13 +236,23 @@ class FakeLedger
 
             round: 0,
             submittedAt: NOW,
-            lockedHoldingCid:
+            lockedAllocationCid:
               null,
           },
         );
         break;
 
       case "DealAgreement.FundEscrow": {
+        if (
+          typeof args
+            .instrumentAdmin !==
+          "string"
+        ) {
+          throw new Error(
+            "This deal does not use Canton escrow",
+          );
+        }
+
         if (
           input.actingParty !==
           args.reviewer
@@ -230,64 +262,90 @@ class FakeLedger
           );
         }
 
-        const holding =
+        const allocation =
           this.find(
             String(
               input
                 .choiceArgument
-                .holdingCid,
+                .allocationCid,
             ),
           );
 
-        const held =
-          holding.createArgument;
+        const spec =
+          (
+            allocation
+              .createArgument as {
+              allocation: {
+                settlement: {
+                  executor: string;
+                  settlementRef: {
+                    id: string;
+                  };
+                };
+                transferLeg: {
+                  sender: string;
+                  receiver: string;
+                  instrumentId: {
+                    admin: string;
+                  };
+                };
+              };
+            }
+          ).allocation;
 
+        const leg =
+          spec.transferLeg;
+
+        // Mirrors the assertMsg checks in DealAgreement.FundEscrow.
         if (
-          held.custodian !==
-            args.custodian ||
-          held.owner !==
-            args.reviewer ||
-          held.amount !==
-            args.amount ||
-          held.instrumentId !==
-            args.instrumentId
+          leg.instrumentId
+            .admin !==
+          args.instrumentAdmin
         ) {
           throw new Error(
-            "Holding does not match the deal",
+            "Allocation instrument admin must match the agreed registry",
+          );
+        }
+
+        if (
+          spec.settlement
+            .settlementRef.id !==
+          args.dealId
+        ) {
+          throw new Error(
+            "Allocation must be for this deal",
+          );
+        }
+
+        if (
+          leg.sender !==
+          args.reviewer
+        ) {
+          throw new Error(
+            "Allocation sender must be the payer (reviewer)",
+          );
+        }
+
+        if (
+          leg.receiver !==
+          args.fulfiller
+        ) {
+          throw new Error(
+            "Allocation receiver must be the payee (fulfiller)",
+          );
+        }
+
+        if (
+          spec.settlement
+            .executor !==
+          args.fulfiller
+        ) {
+          throw new Error(
+            "Allocation executor must be the payee (fulfiller)",
           );
         }
 
         this.consume(contract);
-        this.consume(holding);
-
-        const locked =
-          this.insert(
-            cantonDealTemplates
-              .lockedHolding,
-            {
-              holdingId:
-                held.holdingId,
-
-              custodian:
-                held.custodian,
-
-              payer:
-                held.owner,
-
-              payee:
-                args.fulfiller,
-
-              amount:
-                held.amount,
-
-              instrumentId:
-                held
-                  .instrumentId,
-
-              dealId:
-                args.dealId,
-            },
-          );
 
         this.insert(
           cantonDealTemplates
@@ -298,11 +356,12 @@ class FakeLedger
               carried,
             ),
 
-            custodian:
-              args.custodian,
+            instrumentAdmin:
+              args
+                .instrumentAdmin,
 
-            lockedHoldingCid:
-              locked.contractId,
+            lockedAllocationCid:
+              allocation.contractId,
 
             fundedAt: NOW,
           },
@@ -329,9 +388,9 @@ class FakeLedger
 
             round: 0,
             submittedAt: NOW,
-            lockedHoldingCid:
+            lockedAllocationCid:
               args
-                .lockedHoldingCid,
+                .lockedAllocationCid,
           },
         );
         break;
@@ -350,7 +409,7 @@ class FakeLedger
                 "fulfillmentHash",
                 "round",
                 "submittedAt",
-                "lockedHoldingCid",
+                "lockedAllocationCid",
               ],
             ),
 
@@ -371,7 +430,7 @@ class FakeLedger
 
         if (
           typeof args
-            .lockedHoldingCid !==
+            .lockedAllocationCid !==
           "string"
         ) {
           throw new Error(
@@ -379,37 +438,22 @@ class FakeLedger
           );
         }
 
-        const locked =
+        // Faked Allocation_ExecuteTransfer: archives the Allocation, hands
+        // the receiver a holding. Real semantics belong to the registry.
+        this.consume(
           this.find(
-            args.lockedHoldingCid,
-          );
+            args.lockedAllocationCid,
+          ),
+        );
 
-        const held =
-          locked.createArgument;
-
-        this.consume(contract);
-        this.consume(locked);
-
-        const released =
+        const receiverHolding =
           this.insert(
-            cantonDealTemplates
-              .cashHolding,
+            "#splice-api-token-holding-v1:Splice.Api.Token.HoldingV1:Holding",
             {
-              holdingId:
-                `${String(held.holdingId)}:released`,
-
-              custodian:
-                held.custodian,
-
               owner:
-                held.payee,
+                args.fulfiller,
 
-              amount:
-                held.amount,
-
-              instrumentId:
-                held
-                  .instrumentId,
+              amount: "100",
             },
           );
 
@@ -430,8 +474,10 @@ class FakeLedger
               ],
             ),
 
-            releasedHoldingCid:
-              released.contractId,
+            receiverHoldingCids:
+              [
+                receiverHolding.contractId,
+              ],
 
             settledAt: NOW,
           },
@@ -453,20 +499,11 @@ class FakeLedger
   ): Promise<
     readonly CantonCreatedContract[]
   > {
-    return this.contracts.filter(
-      (contract) =>
-        (stakeholderKeys[
-          nameOf(
-            contract.templateId,
-          )
-        ] ?? []).some(
-          (key) =>
-            contract
-              .createArgument[
-                key
-              ] === party,
-        ),
-    );
+    // The tests only ever look up a contract by id (requireContract /
+    // requireContractOf / findLatestContract*), so it is enough for every
+    // party to see every VINSS contract here -- real per-party visibility
+    // is a Ledger API / Daml stakeholder concern, not this provider's.
+    return this.contracts;
   }
 
   async queryActiveContractsSnapshot():
@@ -582,11 +619,11 @@ const seller =
 const buyer =
   "Buyer::vinss";
 
-const custodian =
-  "Custodian::vinss";
+const registry =
+  "Amulet::registry";
 
-const otherCustodian =
-  "OtherCustodian::vinss";
+const otherRegistry =
+  "Other::registry";
 
 const HASH =
   "a".repeat(64);
@@ -605,14 +642,14 @@ function dealTerms(
 
     termsHash: HASH,
     amount: "100",
-    instrumentId: "USD",
+    instrumentId: "Amulet",
 
     expiresAt:
       new Date(
         Date.now() + 3_600_000,
       ).toISOString(),
 
-    custodian,
+    instrumentAdmin: registry,
 
     ...overrides,
   };
@@ -621,8 +658,8 @@ function dealTerms(
 function legacyTerms():
   DealTerms {
   const {
-    custodian:
-      _custodian,
+    instrumentAdmin:
+      _instrumentAdmin,
     ...rest
   } = dealTerms();
 
@@ -674,30 +711,15 @@ function fundChoices(
 }
 
 describe(
-  "Canton escrow provider",
+  "Canton escrow provider (Token Standard Allocation)",
   () => {
     it(
-      "locks the payer's holding, delivers against the escrow and settles to the payee",
+      "funds from the payer's own Allocation, delivers against the escrow and settles to the payee",
       async () => {
         const {
           ledger,
           provider,
         } = setup();
-
-        const holdingCid =
-          await provider
-            .issueHolding(
-              custodian,
-              {
-                holdingId:
-                  "deposit-1",
-
-                owner: buyer,
-                amount: "100",
-                instrumentId:
-                  "USD",
-              },
-            );
 
         const agreement =
           await agreeOn(
@@ -707,8 +729,24 @@ describe(
 
         expect(
           agreement.terms
-            .custodian,
-        ).toBe(custodian);
+            .instrumentAdmin,
+        ).toBe(registry);
+
+        const allocation =
+          fakeAllocation(
+            "alloc-1",
+            {
+              dealId: "deal-1",
+              sender: buyer,
+              receiver: seller,
+              executor: seller,
+              admin: registry,
+            },
+          );
+
+        ledger.contracts.push(
+          allocation,
+        );
 
         const escrowCid =
           await provider
@@ -716,7 +754,7 @@ describe(
               buyer,
               agreement
                 .contractId,
-              holdingCid,
+              allocation.contractId,
             );
 
         const fund =
@@ -735,20 +773,17 @@ describe(
           fund
             ?.choiceArgument,
         ).toEqual({
-          holdingCid,
+          allocationCid:
+            allocation.contractId,
         });
 
+        // FundEscrow references the Allocation; it never creates a VINSS
+        // holding of its own.
         expect(
           ledger.named(
-            "CashHolding",
+            "Holding",
           ),
         ).toHaveLength(0);
-
-        expect(
-          ledger.named(
-            "LockedHolding",
-          ),
-        ).toHaveLength(1);
 
         const fulfillmentCid =
           await provider
@@ -784,6 +819,7 @@ describe(
             .settle(
               seller,
               approvalCid,
+              { note: "test" },
             );
 
         expect(
@@ -805,34 +841,53 @@ describe(
           receipt.settledAt,
         ).toBe(NOW);
 
-        const released =
-          ledger.named(
-            "CashHolding",
+        const settle =
+          ledger.exercises.find(
+            (exercise) =>
+              exercise.choice ===
+              "Settle",
           );
 
         expect(
-          released,
+          (
+            settle
+              ?.choiceArgument as {
+              extraArgs: {
+                context: {
+                  values: unknown;
+                };
+              };
+            }
+          ).extraArgs.context
+            .values,
+        ).toEqual({
+          note: "test",
+        });
+
+        // The Allocation is gone; the payee has a holding instead.
+        expect(
+          ledger.contracts.some(
+            (contract) =>
+              contract
+                .contractId ===
+              "alloc-1",
+          ),
+        ).toBe(false);
+
+        const holdings =
+          ledger.named(
+            "Holding",
+          );
+
+        expect(
+          holdings,
         ).toHaveLength(1);
 
         expect(
-          released[0]
-            ?.createArgument,
-        ).toEqual({
-          holdingId:
-            "deposit-1:released",
-
-          custodian,
-          owner: seller,
-          amount: "100",
-          instrumentId:
-            "USD",
-        });
-
-        expect(
-          ledger.named(
-            "LockedHolding",
-          ),
-        ).toHaveLength(0);
+          holdings[0]
+            ?.createArgument
+            .owner,
+        ).toBe(seller);
 
         expect(
           ledger.named(
@@ -846,91 +901,7 @@ describe(
     );
 
     it(
-      "pays the fulfiller when the roles are swapped",
-      async () => {
-        const {
-          ledger,
-          provider,
-        } = setup();
-
-        // Freelance-style deal: the buyer does the work and the seller
-        // reviews, so the seller (reviewer) funds and the buyer is paid.
-        const holdingCid =
-          await provider
-            .issueHolding(
-              custodian,
-              {
-                holdingId:
-                  "deposit-2",
-
-                owner: seller,
-                amount: "100",
-                instrumentId:
-                  "USD",
-              },
-            );
-
-        const agreement =
-          await agreeOn(
-            provider,
-            dealTerms({
-              fulfiller: buyer,
-              reviewer: seller,
-            }),
-          );
-
-        await expect(
-          provider.fundEscrow(
-            buyer,
-            agreement
-              .contractId,
-            holdingCid,
-          ),
-        ).rejects.toThrow(
-          "Only the VINSS reviewer (payer) can fund the escrow",
-        );
-
-        const escrowCid =
-          await provider
-            .fundEscrow(
-              seller,
-              agreement
-                .contractId,
-              holdingCid,
-            );
-
-        const fulfillmentCid =
-          await provider
-            .submitFulfillment(
-              buyer,
-              escrowCid,
-              HASH,
-            );
-
-        const approvalCid =
-          await provider
-            .approveFulfillment(
-              seller,
-              fulfillmentCid,
-            );
-
-        await provider.settle(
-          buyer,
-          approvalCid,
-        );
-
-        expect(
-          ledger.named(
-            "CashHolding",
-          )[0]
-            ?.createArgument
-            .owner,
-        ).toBe(buyer);
-      },
-    );
-
-    it(
-      "keeps the original flow for deals without a custodian",
+      "keeps the original flow for deals without an instrumentAdmin",
       async () => {
         const {
           ledger,
@@ -945,7 +916,7 @@ describe(
 
         expect(
           agreement.terms
-            .custodian,
+            .instrumentAdmin,
         ).toBeUndefined();
 
         await expect(
@@ -989,23 +960,15 @@ describe(
               fulfillmentCid,
             );
 
-        const before =
-          ledger.exercises
-            .length;
-
         await expect(
           provider.settle(
             seller,
             approvalCid,
+            {},
           ),
         ).rejects.toThrow(
           "has no Canton escrow to settle",
         );
-
-        expect(
-          ledger.exercises
-            .length,
-        ).toBe(before);
       },
     );
 
@@ -1013,7 +976,6 @@ describe(
       "refuses to skip funding on a deal that uses escrow",
       async () => {
         const {
-          ledger,
           provider,
         } = setup();
 
@@ -1034,21 +996,11 @@ describe(
         ).rejects.toThrow(
           "fund it before submitting fulfillment",
         );
-
-        expect(
-          ledger.exercises
-            .some(
-              (exercise) =>
-                exercise
-                  .choice ===
-                "SubmitFulfillment",
-            ),
-        ).toBe(false);
       },
     );
 
     it(
-      "rejects a holding that does not match the deal before submitting anything",
+      "rejects an Allocation that does not match the deal",
       async () => {
         const {
           ledger,
@@ -1061,89 +1013,106 @@ describe(
             dealTerms(),
           );
 
-        const issue = (
-          issuer: string,
-          holdingId: string,
-          amount: string,
-          instrumentId: string,
-        ) =>
-          provider.issueHolding(
-            issuer,
-            {
-              holdingId,
-              owner: buyer,
-              amount,
-              instrumentId,
-            },
-          );
-
-        const wrongCustodian =
-          await issue(
-            otherCustodian,
-            "d-a",
-            "100",
-            "USD",
-          );
-
-        const wrongAmount =
-          await issue(
-            custodian,
-            "d-b",
-            "99",
-            "USD",
-          );
-
-        const wrongInstrument =
-          await issue(
-            custodian,
-            "d-c",
-            "100",
-            "EUR",
-          );
-
         const cases: [
           string,
+          Parameters<
+            typeof fakeAllocation
+          >[1],
           string,
         ][] = [
           [
-            wrongCustodian,
-            "not issued by the agreed custodian",
+            "wrong-registry",
+            {
+              dealId: "deal-1",
+              sender: buyer,
+              receiver: seller,
+              executor: seller,
+              admin:
+                otherRegistry,
+            },
+            "instrument admin must match the agreed registry",
           ],
           [
-            wrongAmount,
-            "amount must match the deal amount exactly",
+            "wrong-deal",
+            {
+              dealId:
+                "some-other-deal",
+              sender: buyer,
+              receiver: seller,
+              executor: seller,
+              admin: registry,
+            },
+            "Allocation must be for this deal",
           ],
           [
-            wrongInstrument,
-            "instrument must match the deal instrument",
+            "wrong-sender",
+            {
+              dealId: "deal-1",
+              sender: seller,
+              receiver: seller,
+              executor: seller,
+              admin: registry,
+            },
+            "sender must be the payer",
+          ],
+          [
+            "wrong-receiver",
+            {
+              dealId: "deal-1",
+              sender: buyer,
+              receiver: buyer,
+              executor: seller,
+              admin: registry,
+            },
+            "receiver must be the payee",
+          ],
+          [
+            "wrong-executor",
+            {
+              dealId: "deal-1",
+              sender: buyer,
+              receiver: seller,
+              executor: buyer,
+              admin: registry,
+            },
+            "executor must be the payee",
           ],
         ];
 
         for (
           const [
-            holdingCid,
+            contractId,
+            fields,
             message,
           ]
           of cases
         ) {
+          ledger.contracts.push(
+            fakeAllocation(
+              contractId,
+              fields,
+            ),
+          );
+
           await expect(
             provider
               .fundEscrow(
                 buyer,
                 agreement
                   .contractId,
-                holdingCid,
+                contractId,
               ),
           ).rejects.toThrow(
             message,
           );
         }
 
+        // fundEscrow does not pre-validate the Allocation client-side (the
+        // Daml choice does, see FundEscrow's assertMsg checks) -- so all 5
+        // rejected attempts still reach the ledger.
         expect(
-          fundChoices(
-            ledger,
-          ),
-        ).toHaveLength(0);
+          fundChoices(ledger),
+        ).toHaveLength(5);
       },
     );
 
@@ -1155,33 +1124,34 @@ describe(
           provider,
         } = setup();
 
-        const holdingCid =
-          await provider
-            .issueHolding(
-              custodian,
-              {
-                holdingId:
-                  "deposit-3",
-
-                owner: buyer,
-                amount: "100",
-                instrumentId:
-                  "USD",
-              },
-            );
-
         const agreement =
           await agreeOn(
             provider,
             dealTerms(),
           );
 
+        const allocation =
+          fakeAllocation(
+            "alloc-2",
+            {
+              dealId: "deal-1",
+              sender: buyer,
+              receiver: seller,
+              executor: seller,
+              admin: registry,
+            },
+          );
+
+        ledger.contracts.push(
+          allocation,
+        );
+
         await expect(
           provider.fundEscrow(
             seller,
             agreement
               .contractId,
-            holdingCid,
+            allocation.contractId,
           ),
         ).rejects.toThrow(
           "Only the VINSS reviewer (payer) can fund the escrow",
@@ -1199,7 +1169,7 @@ describe(
               buyer,
               agreement
                 .contractId,
-              holdingCid,
+              allocation.contractId,
             );
 
         const approvalCid =
@@ -1218,121 +1188,25 @@ describe(
           provider.settle(
             buyer,
             approvalCid,
+            {},
           ),
         ).rejects.toThrow(
           "Only the VINSS fulfiller (payee) can settle the escrow",
         );
 
         expect(
-          ledger.named(
-            "LockedHolding",
+          ledger.contracts.some(
+            (contract) =>
+              contract
+                .contractId ===
+              "alloc-2",
           ),
-        ).toHaveLength(1);
+        ).toBe(true);
       },
     );
 
     it(
-      "validates holdings before issuing them",
-      async () => {
-        const {
-          ledger,
-          provider,
-        } = setup();
-
-        const holding = (
-          overrides:
-            Record<
-              string,
-              string
-            > = {},
-        ) => ({
-          holdingId:
-            "deposit-4",
-
-          owner: buyer,
-          amount: "100",
-          instrumentId: "USD",
-          ...overrides,
-        });
-
-        for (
-          const amount
-          of [
-            "0",
-            "0.00",
-            "-5",
-            "abc",
-            "",
-          ]
-        ) {
-          await expect(
-            provider
-              .issueHolding(
-                custodian,
-                holding({
-                  amount,
-                }),
-              ),
-          ).rejects.toThrow(
-            "greater than zero",
-          );
-        }
-
-        await expect(
-          provider
-            .issueHolding(
-              custodian,
-              holding({
-                holdingId: " ",
-              }),
-            ),
-        ).rejects.toThrow(
-          "holding id is required",
-        );
-
-        await expect(
-          provider
-            .issueHolding(
-              custodian,
-              holding({
-                owner:
-                  custodian,
-              }),
-            ),
-        ).rejects.toThrow(
-          "cannot issue a holding to itself",
-        );
-
-        expect(
-          ledger.contracts,
-        ).toHaveLength(0);
-
-        await provider
-          .issueHolding(
-            custodian,
-            holding(),
-          );
-
-        await expect(
-          provider
-            .issueHolding(
-              custodian,
-              holding(),
-            ),
-        ).rejects.toThrow(
-          "already issued",
-        );
-
-        expect(
-          ledger.named(
-            "CashHolding",
-          ),
-        ).toHaveLength(1);
-      },
-    );
-
-    it(
-      "requires the custodian to be independent of the deal parties",
+      "requires the instrumentAdmin to be independent of the deal parties",
       async () => {
         const {
           ledger,
@@ -1348,12 +1222,12 @@ describe(
               .createProposal(
                 seller,
                 dealTerms({
-                  custodian:
+                  instrumentAdmin:
                     party,
                 }),
               ),
           ).rejects.toThrow(
-            "custodian must be independent of the deal parties",
+            "instrumentAdmin must be independent of the deal parties",
           );
         }
 

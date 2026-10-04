@@ -1,11 +1,21 @@
 import type {
   CantonContractId,
-  CantonHoldingTerms,
   CantonPartyId,
   DealAgreement,
   DealTerms,
   SettlementReceipt,
 } from "./types.js";
+
+/**
+ * The off-ledger choice context a CIP-56 registry (Amulet for Canton Coin,
+ * a stablecoin issuer's registry for USDCx, ...) returns for a specific
+ * choice invocation. Opaque to VINSS: fetched from the registry's API and
+ * passed straight through to Allocation_ExecuteTransfer.
+ */
+export type CantonChoiceContext =
+  Readonly<
+    Record<string, unknown>
+  >;
 
 export interface CantonOfferProvider {
   createProposal(
@@ -28,23 +38,16 @@ export interface CantonOfferProvider {
 
 export interface CantonEscrowProvider {
   /**
-   * Custodian only: acknowledges a deposit as an on-ledger holding.
-   * Returns the CashHolding contract id.
-   */
-  issueHolding(
-    actingParty: CantonPartyId,
-    holding: CantonHoldingTerms,
-  ): Promise<CantonContractId>;
-
-  /**
-   * Payer (reviewer) locks a holding into the deal. Consumes the
+   * Payer (reviewer) references an Allocation their own wallet already
+   * created (AllocationFactory_Allocate, off-ledger, see
+   * docs/CANTON_COIN_SETUP.md) to fund the deal. Consumes the
    * DealAgreement and returns the DealEscrow contract id.
    */
   fundEscrow(
     actingParty: CantonPartyId,
     agreementContractId:
       CantonContractId,
-    holdingContractId:
+    allocationContractId:
       CantonContractId,
   ): Promise<CantonContractId>;
 }
@@ -86,8 +89,9 @@ export interface CantonFulfillmentProvider {
  * Full VINSS Canton business workflow.
  *
  * Offer/Agreement and Fulfillment are explicit.
- * Deals that name a custodian settle on-ledger through escrow; for other
- * deals economic settlement remains a separate product layer.
+ * Deals that name an instrumentAdmin settle on-ledger through escrow, via
+ * the Canton Network Token Standard; VINSS never holds the funds itself.
+ * For other deals economic settlement remains a separate product layer.
  */
 export interface CantonDealProvider
   extends
@@ -97,11 +101,16 @@ export interface CantonDealProvider
 {
   /**
    * Payee (fulfiller) claims the escrowed funds from an approved
-   * fulfillment.
+   * fulfillment, by exercising the Allocation's own
+   * Allocation_ExecuteTransfer. `choiceContext` is the registry's off-ledger
+   * choice context for that exercise (see CantonChoiceContext); the caller
+   * is responsible for fetching it from the registry's API.
    */
   settle(
     actingParty: CantonPartyId,
     approvalContractId:
       CantonContractId,
+    choiceContext:
+      CantonChoiceContext,
   ): Promise<SettlementReceipt>;
 }

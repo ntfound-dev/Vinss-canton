@@ -1,26 +1,43 @@
 module Vinss.Deal where
 
-import Vinss.Custody
+import DA.TextMap qualified as TextMap
+import Splice.Api.Token.MetadataV1 qualified as Meta
+import Splice.Api.Token.HoldingV1 qualified as Holding
+import Splice.Api.Token.AllocationV1 qualified as Allocation
 
--- A deal uses Canton escrow when its proposal names a custodian.
--- Without one, the deal keeps the original flow (no on-ledger funds).
+-- Canton Coin (CC) escrow, via the Canton Network Token Standard (CIP-56).
+--
+-- VINSS never holds funds. The payer's own wallet locks CC into a standard
+-- `Allocation` (Splice.Api.Token.AllocationV1) before fulfillment, and the
+-- payee claims it after approval by exercising the standard's own
+-- `Allocation_ExecuteTransfer` choice. VINSS's contracts only reference that
+-- Allocation by ContractId and check it names the right deal, parties and
+-- registry -- they never implement Holding or Allocation themselves, and
+-- never move CC on their own authority alone.
+--
+-- Money flow: the reviewer (who approves the work) is the payer and the
+-- fulfiller (who delivers it) is the payee. With the default roles this is
+-- buyer -> seller, and it stays coherent when the roles are swapped (e.g.
+-- freelance offers, where the seller delivers and the buyer reviews).
+--
+-- `instrumentAdmin` is the Party that administers the CC instrument (the
+-- Amulet/CC registry's `admin` party -- differs between MainNet and any
+-- TestNet/LocalNet). A deal without one keeps the original flow and has
+-- nothing to settle on Canton.
+
 usesEscrow : Optional Party -> Bool
-usesEscrow custodian =
-  case custodian of
+usesEscrow instrumentAdmin =
+  case instrumentAdmin of
     None -> False
     Some _ -> True
 
--- The custodian holds value on behalf of both parties, so it must be
--- neither of them.
-custodianIsIndependent : Party -> Party -> Optional Party -> Bool
-custodianIsIndependent seller buyer custodian =
-  case custodian of
+-- The registry admin is a network party, not a deal party.
+instrumentAdminIsIndependent : Party -> Party -> Optional Party -> Bool
+instrumentAdminIsIndependent seller buyer instrumentAdmin =
+  case instrumentAdmin of
     None -> True
-    Some agreedCustodian -> agreedCustodian /= seller && agreedCustodian /= buyer
+    Some admin -> admin /= seller && admin /= buyer
 
--- Escrow money flow: the reviewer (who approves the work) is the payer and
--- the fulfiller (who delivers it) is the payee. With the default roles this
--- is buyer -> seller, and it stays coherent when the roles are swapped.
 
 template DealProposal
   with
@@ -35,7 +52,7 @@ template DealProposal
     instrumentId : Text
     expiresAt : Time
     createdAt : Time
-    custodian : Optional Party
+    instrumentAdmin : Optional Party
   where
     signatory seller
     observer buyer
@@ -57,7 +74,7 @@ template DealProposal
       &&
       expiresAt > createdAt
       &&
-      custodianIsIndependent seller buyer custodian
+      instrumentAdminIsIndependent seller buyer instrumentAdmin
 
     choice Accept : ContractId DealAgreement
       controller buyer
@@ -78,7 +95,7 @@ template DealProposal
           instrumentId
           expiresAt
           acceptedAt = now
-          custodian
+          instrumentAdmin
 
     choice Reject : ()
       controller buyer
@@ -99,7 +116,7 @@ template DealAgreement
     instrumentId : Text
     expiresAt : Time
     acceptedAt : Time
-    custodian : Optional Party
+    instrumentAdmin : Optional Party
   where
     signatory seller, buyer
 
@@ -118,10 +135,10 @@ template DealAgreement
       &&
       instrumentId /= ""
       &&
-      custodianIsIndependent seller buyer custodian
+      instrumentAdminIsIndependent seller buyer instrumentAdmin
 
-    -- Original flow, kept for deals without escrow. Deals that name a
-    -- custodian must go through FundEscrow first.
+    -- Original flow, kept for deals without escrow. Deals that name an
+    -- instrumentAdmin must go through FundEscrow first.
     choice SubmitFulfillment : ContractId DealFulfillment
       with
         fulfillmentHash : Text
@@ -131,7 +148,7 @@ template DealAgreement
 
         assertMsg
           "Fund the escrow before submitting fulfillment"
-          (not (usesEscrow custodian))
+          (not (usesEscrow instrumentAdmin))
 
         now <- getTime
 
@@ -150,43 +167,46 @@ template DealAgreement
           fulfillmentHash
           round = 0
           submittedAt = now
-          lockedHoldingCid = None
+          lockedAllocationCid = None
 
-    -- The payer locks a holding issued by the agreed custodian. The lock and
-    -- the escrow are created in one transaction, so a deal is funded if and
-    -- only if the holding is locked.
+    -- The payer's wallet must already have locked CC into a standard
+    -- Allocation (Splice AllocationFactory_Allocate, off-ledger, before this
+    -- choice: see docs/ARCHITECTURE.md). This choice only references and
+    -- validates that Allocation; VINSS never creates or holds it.
     choice FundEscrow : ContractId DealEscrow
       with
-        holdingCid : ContractId CashHolding
+        allocationCid : ContractId Allocation.Allocation
       controller reviewer
       do
-        case custodian of
+        case instrumentAdmin of
           None ->
             abort "This deal does not use Canton escrow"
 
-          Some agreedCustodian -> do
-            holding <- fetch holdingCid
+          Some admin -> do
+            allocation <- fetch allocationCid
+            let allocView = view allocation
+            let spec = allocView.allocation
+            let leg = spec.transferLeg
 
             assertMsg
-              "Holding must be issued by the agreed custodian"
-              (holding.custodian == agreedCustodian)
+              "Allocation instrument admin must match the agreed registry"
+              (leg.instrumentId.admin == admin)
 
             assertMsg
-              "Holding must belong to the payer (reviewer)"
-              (holding.owner == reviewer)
+              "Allocation must be for this deal"
+              (spec.settlement.settlementRef.id == dealId)
 
             assertMsg
-              "Holding amount must match the deal amount"
-              (holding.amount == amount)
+              "Allocation sender must be the payer (reviewer)"
+              (leg.sender == reviewer)
 
             assertMsg
-              "Holding instrument must match the deal instrument"
-              (holding.instrumentId == instrumentId)
+              "Allocation receiver must be the payee (fulfiller)"
+              (leg.receiver == fulfiller)
 
-            lockedCid <-
-              exercise holdingCid LockForDeal with
-                dealId = dealId
-                payee = fulfiller
+            assertMsg
+              "Allocation executor must be the payee (fulfiller), who later claims settlement"
+              (spec.settlement.executor == fulfiller)
 
             now <- getTime
 
@@ -197,18 +217,18 @@ template DealAgreement
               buyer
               fulfiller
               reviewer
-              custodian = agreedCustodian
+              instrumentAdmin = admin
               termsHash
               amount
               instrumentId
               expiresAt
               acceptedAt
-              lockedHoldingCid = lockedCid
+              lockedAllocationCid = allocationCid
               fundedAt = now
 
 
--- Funded deal: the payer's holding is locked and cannot be released without
--- an approved fulfillment (see FulfillmentApproval.Settle).
+-- Funded deal: the payer's CC is locked in the referenced Allocation and
+-- cannot move without an approved fulfillment (see FulfillmentApproval.Settle).
 template DealEscrow
   with
     dealId : Text
@@ -217,13 +237,13 @@ template DealEscrow
     buyer : Party
     fulfiller : Party
     reviewer : Party
-    custodian : Party
+    instrumentAdmin : Party
     termsHash : Text
     amount : Text
     instrumentId : Text
     expiresAt : Time
     acceptedAt : Time
-    lockedHoldingCid : ContractId LockedHolding
+    lockedAllocationCid : ContractId Allocation.Allocation
     fundedAt : Time
   where
     signatory seller, buyer
@@ -269,7 +289,7 @@ template DealEscrow
           fulfillmentHash
           round = 0
           submittedAt = now
-          lockedHoldingCid = Some lockedHoldingCid
+          lockedAllocationCid = Some lockedAllocationCid
 
 
 template DealFulfillment
@@ -288,7 +308,7 @@ template DealFulfillment
     fulfillmentHash : Text
     round : Int
     submittedAt : Time
-    lockedHoldingCid : Optional (ContractId LockedHolding)
+    lockedAllocationCid : Optional (ContractId Allocation.Allocation)
   where
     signatory fulfiller
     observer reviewer
@@ -319,7 +339,7 @@ template DealFulfillment
           round
           submittedAt
           approvedAt = now
-          lockedHoldingCid
+          lockedAllocationCid
 
     choice RequestRevision : ContractId DealRevisionRequest
       with
@@ -346,7 +366,7 @@ template DealFulfillment
           reviewHash
           round
           requestedAt = now
-          lockedHoldingCid
+          lockedAllocationCid
 
 
 template DealRevisionRequest
@@ -366,7 +386,7 @@ template DealRevisionRequest
     reviewHash : Text
     round : Int
     requestedAt : Time
-    lockedHoldingCid : Optional (ContractId LockedHolding)
+    lockedAllocationCid : Optional (ContractId Allocation.Allocation)
   where
     signatory reviewer
     observer fulfiller
@@ -404,7 +424,7 @@ template DealRevisionRequest
           fulfillmentHash
           round = round + 1
           submittedAt = now
-          lockedHoldingCid
+          lockedAllocationCid
 
 
 template FulfillmentApproval
@@ -422,7 +442,7 @@ template FulfillmentApproval
     round : Int
     submittedAt : Time
     approvedAt : Time
-    lockedHoldingCid : Optional (ContractId LockedHolding)
+    lockedAllocationCid : Optional (ContractId Allocation.Allocation)
   where
     signatory reviewer
     observer fulfiller
@@ -434,18 +454,29 @@ template FulfillmentApproval
       &&
       round >= 0
 
-    -- The payee claims the escrowed funds after approval. The payer's
-    -- authority for the release comes from signing this approval, so the
-    -- funds can only move through an approved fulfillment.
+    -- The payee claims the escrowed CC after approval, by exercising the
+    -- Token Standard's own Allocation_ExecuteTransfer -- not VINSS code.
+    -- `extraArgs` (the off-ledger choice context) must come from the CC
+    -- registry's API; the caller is responsible for fetching it.
+    --
+    -- Authorization: Allocation_ExecuteTransfer needs sender (reviewer),
+    -- receiver (fulfiller) and executor (fulfiller, see FundEscrow). The
+    -- fulfiller supplies their own as controller here; the reviewer's was
+    -- already given when they signed this FulfillmentApproval, so CC can
+    -- only move through an approved fulfillment.
     choice Settle : ContractId SettlementReceipt
+      with
+        extraArgs : Meta.ExtraArgs
       controller fulfiller
       do
-        case lockedHoldingCid of
+        case lockedAllocationCid of
           None ->
             abort "This deal has no Canton escrow to settle"
 
-          Some lockedCid -> do
-            releasedCid <- exercise lockedCid ReleaseToPayee
+          Some allocCid -> do
+            result <-
+              exercise allocCid Allocation.Allocation_ExecuteTransfer with
+                extraArgs
 
             now <- getTime
 
@@ -460,7 +491,7 @@ template FulfillmentApproval
               instrumentId
               fulfillmentHash
               round
-              releasedHoldingCid = releasedCid
+              receiverHoldingCids = result.receiverHoldingCids
               settledAt = now
 
 
@@ -476,7 +507,7 @@ template SettlementReceipt
     instrumentId : Text
     fulfillmentHash : Text
     round : Int
-    releasedHoldingCid : ContractId CashHolding
+    receiverHoldingCids : [ContractId Holding.Holding]
     settledAt : Time
   where
     signatory fulfiller, reviewer

@@ -5,6 +5,7 @@ on:
     paths:
       - "daml/**"
       - "daml.yaml"
+      - "deps/**"
       - ".github/workflows/canton-daml.yml"
   pull_request:
     paths:
