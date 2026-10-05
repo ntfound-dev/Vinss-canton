@@ -2,6 +2,10 @@ import * as cantonSdk
   from "@canton-network/dapp-sdk";
 
 import {
+  initCantonWalletSdk,
+} from "./canton-wallet-config";
+
+import {
   HttpCantonLedgerClient,
 } from "../../src/canton/http-ledger-client.js";
 
@@ -53,7 +57,7 @@ export class CantonDappLedgerClient
   ): Promise<
     CantonDappLedgerClient
   > {
-    await cantonSdk.init();
+    await initCantonWalletSdk();
 
     const connection =
       await cantonSdk

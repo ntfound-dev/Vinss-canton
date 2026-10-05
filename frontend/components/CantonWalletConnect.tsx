@@ -8,6 +8,10 @@ import {
 import * as cantonSdk
   from "@canton-network/dapp-sdk";
 
+import {
+  initCantonWalletSdk,
+} from "@/lib/canton-wallet-config";
+
 export type CantonWalletSession = {
   partyId: string;
   hint?: string;
@@ -103,8 +107,7 @@ export function CantonWalletConnect({
       const restore =
         async () => {
           try {
-            await cantonSdk
-              .init();
+            await initCantonWalletSdk();
 
             const connection =
               await cantonSdk
@@ -159,7 +162,7 @@ export function CantonWalletConnect({
     setError(null);
 
     try {
-      await cantonSdk.init();
+      await initCantonWalletSdk();
 
       const result =
         await cantonSdk
