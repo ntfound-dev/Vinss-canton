@@ -1,9 +1,17 @@
 import initOpenMls, * as openMlsModule
   from "./openmls/vinss_mls.js";
 
+import type {
+  CantonLedgerClient,
+} from "../../src/canton/ledger-client.js";
+
 import {
-  HttpCantonLedgerClient,
-} from "../../src/canton/http-ledger-client.js";
+  CantonDappLedgerClient,
+} from "./canton-dapp-ledger-client";
+
+import {
+  CantonPollingUpdateStream,
+} from "./canton-polling-update-stream";
 
 import {
   HttpCantonOfferProvider,
@@ -21,10 +29,6 @@ import {
   isCantonDealTemplate,
   type CantonDealTemplateName,
 } from "../../src/canton/deal-templates.js";
-
-import {
-  CantonWebSocketUpdateStream,
-} from "../../src/canton/websocket-update-stream.js";
 
 import {
   AuthenticatedCantonMessagingDirectory,
@@ -399,6 +403,8 @@ export interface CantonRoomDealAction {
 export interface CantonRoomInput {
   conversationId: string;
 
+  walletParty: string;
+
   peerParty: string;
 
   peerInstallationId:
@@ -482,7 +488,7 @@ export class CantonRoomRuntime {
       CantonLiveMessagingSession,
 
     private readonly ledger:
-      HttpCantonLedgerClient,
+      CantonLedgerClient,
 
     private readonly offerProvider:
       HttpCantonOfferProvider,
@@ -504,26 +510,11 @@ export class CantonRoomRuntime {
       "connecting",
     );
 
-    const baseUrl =
-      process.env
-        .NEXT_PUBLIC_CANTON_URL;
-
-    if (!baseUrl) {
-      throw new Error(
-        "NEXT_PUBLIC_CANTON_URL is not configured",
-      );
-    }
-
-    const userId =
-      process.env
-        .NEXT_PUBLIC_CANTON_USER_ID ??
-      "ledger-api-user";
-
     const ledger =
-      new HttpCantonLedgerClient({
-        baseUrl,
-        userId,
-      });
+      await CantonDappLedgerClient
+        .connect(
+          input.walletParty,
+        );
 
     const authenticated =
       await ledger
@@ -654,8 +645,8 @@ export class CantonRoomRuntime {
       new CantonLiveMessagingSession(
         provider,
 
-        new CantonWebSocketUpdateStream({
-          baseUrl,
+        new CantonPollingUpdateStream({
+          ledger,
         }),
 
         ledger,

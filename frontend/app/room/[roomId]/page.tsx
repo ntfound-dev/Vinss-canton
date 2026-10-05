@@ -32,6 +32,11 @@ import {
   CantonConversationPanel,
 } from "@/components/room/CantonConversationPanel";
 
+import {
+  CantonWalletConnect,
+  type CantonWalletSession,
+} from "@/components/CantonWalletConnect";
+
 export default function RoomPage() {
   const params =
     useParams<{
@@ -69,6 +74,19 @@ export default function RoomPage() {
       null
     >(null);
 
+  const [
+    walletSession,
+    setWalletSession,
+  ] =
+    useState<
+      CantonWalletSession |
+      null
+    >(null);
+
+  const walletParty =
+    walletSession
+      ?.partyId;
+
   const [status, setStatus] =
     useState<
       CantonRoomStatus |
@@ -99,8 +117,11 @@ export default function RoomPage() {
     () => {
       if (
         !peerParty ||
-        !peerInstallation
+        !peerInstallation ||
+        !walletParty
       ) {
+        setRuntime(null);
+        setStatus("idle");
         return;
       }
 
@@ -115,6 +136,8 @@ export default function RoomPage() {
         .connect({
           conversationId:
             params.roomId,
+
+          walletParty,
 
           peerParty,
 
@@ -236,6 +259,7 @@ export default function RoomPage() {
       params.roomId,
       peerInstallation,
       peerParty,
+      walletParty,
     ],
   );
 
@@ -520,7 +544,8 @@ export default function RoomPage() {
   const configured =
     Boolean(
       peerParty &&
-      peerInstallation,
+      peerInstallation &&
+      walletParty,
     );
 
   const peerLabel =
@@ -540,6 +565,25 @@ export default function RoomPage() {
           }
           status={status}
         />
+
+        <div className="mb-4">
+          <CantonWalletConnect
+            onConnected={
+              setWalletSession
+            }
+            onDisconnected={() => {
+              setWalletSession(
+                null,
+              );
+              setRuntime(
+                null,
+              );
+              setStatus(
+                "idle",
+              );
+            }}
+          />
+        </div>
 
         <RoomTabs
           value={tab}
