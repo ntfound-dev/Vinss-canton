@@ -41,9 +41,12 @@ export type DealAction =
   | "accept"
   | "reject"
   | "submit_fulfillment"
+  | "request_revision"
+  | "submit_revision"
   | "approve_fulfillment"
   | "open_dispute"
-  | "request_settlement";
+  | "request_settlement"
+  | "settled";
 
 export type MessageContent =
   | { type: "text"; text: string }

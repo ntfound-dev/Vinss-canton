@@ -401,6 +401,122 @@ export default function RoomPage() {
     }
   }
 
+  async function updateOffer(
+    action:
+      () => Promise<CantonRoomOffer>,
+  ): Promise<void> {
+    setBusy(true);
+    setError(null);
+
+    try {
+      const updated =
+        await action();
+
+      setOffers(
+        (current) =>
+          mergeOffers(
+            current,
+            [updated],
+          ),
+      );
+    } catch (cause) {
+      setError(
+        errorText(cause),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitFulfillment(
+    offer:
+      CantonRoomOffer,
+    proof:
+      string,
+  ) {
+    if (!runtime) {
+      return;
+    }
+
+    await updateOffer(
+      () =>
+        runtime.submitFulfillment(
+          offer,
+          proof,
+        ),
+    );
+  }
+
+  async function requestRevision(
+    offer:
+      CantonRoomOffer,
+    note:
+      string,
+  ) {
+    if (!runtime) {
+      return;
+    }
+
+    await updateOffer(
+      () =>
+        runtime.requestRevision(
+          offer,
+          note,
+        ),
+    );
+  }
+
+  async function submitRevision(
+    offer:
+      CantonRoomOffer,
+    proof:
+      string,
+  ) {
+    if (!runtime) {
+      return;
+    }
+
+    await updateOffer(
+      () =>
+        runtime.submitRevision(
+          offer,
+          proof,
+        ),
+    );
+  }
+
+  async function approveFulfillment(
+    offer:
+      CantonRoomOffer,
+  ) {
+    if (!runtime) {
+      return;
+    }
+
+    await updateOffer(
+      () =>
+        runtime.approveFulfillment(
+          offer,
+        ),
+    );
+  }
+
+  async function settleOffer(
+    offer:
+      CantonRoomOffer,
+  ) {
+    if (!runtime) {
+      return;
+    }
+
+    await updateOffer(
+      () =>
+        runtime.settleOffer(
+          offer,
+        ),
+    );
+  }
+
   const configured =
     Boolean(
       peerParty &&
@@ -492,6 +608,21 @@ export default function RoomPage() {
             }
             onRejectOffer={
               rejectOffer
+            }
+            onSubmitFulfillment={
+              submitFulfillment
+            }
+            onRequestRevision={
+              requestRevision
+            }
+            onSubmitRevision={
+              submitRevision
+            }
+            onApproveFulfillment={
+              approveFulfillment
+            }
+            onSettleOffer={
+              settleOffer
             }
           />
         ) : (
@@ -630,31 +761,88 @@ function applyDealActions(
         return offer;
       }
 
-      if (
-        action.action ===
-        "accept"
+      const cid =
+        action.cantonContractId;
+
+      switch (
+        action.action
       ) {
-        return {
-          ...offer,
-          status:
-            "accepted" as const,
+        case "accept":
+          return {
+            ...offer,
+            status: "accepted",
+            lifecycle: "accepted",
+            ...(cid
+              ? {
+                  agreementContractId:
+                    cid,
+                }
+              : {}),
+          };
 
-          ...(action
-            .cantonContractId
-            ? {
-                agreementContractId:
-                  action
-                    .cantonContractId,
-              }
-            : {}),
-        };
+        case "reject":
+          return {
+            ...offer,
+            status: "rejected",
+          };
+
+        case "submit_fulfillment":
+        case "submit_revision":
+          return {
+            ...offer,
+            status: "accepted",
+            lifecycle: "submitted",
+            ...(cid
+              ? {
+                  fulfillmentContractId:
+                    cid,
+                }
+              : {}),
+          };
+
+        case "request_revision":
+          return {
+            ...offer,
+            status: "accepted",
+            lifecycle:
+              "revision_requested",
+            ...(cid
+              ? {
+                  revisionRequestContractId:
+                    cid,
+                }
+              : {}),
+          };
+
+        case "approve_fulfillment":
+          return {
+            ...offer,
+            status: "accepted",
+            lifecycle: "approved",
+            ...(cid
+              ? {
+                  approvalContractId:
+                    cid,
+                }
+              : {}),
+          };
+
+        case "settled":
+          return {
+            ...offer,
+            status: "accepted",
+            lifecycle: "settled",
+            ...(cid
+              ? {
+                  settlementReceiptContractId:
+                    cid,
+                }
+              : {}),
+          };
+
+        default:
+          return offer;
       }
-
-      return {
-        ...offer,
-        status:
-          "rejected" as const,
-      };
     },
   );
 }

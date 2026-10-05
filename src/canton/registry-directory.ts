@@ -13,7 +13,7 @@ export class StaticCantonRegistryDirectory
   implements CantonRegistryDirectory
 {
   readonly #urls:
-    ReadonlyMap<string, string>;
+    Map<string, string>;
 
   constructor(
     entries:
@@ -34,6 +34,18 @@ export class StaticCantonRegistryDirectory
           ],
         ),
       );
+  }
+
+  register(
+    instrumentAdmin: string,
+    registryUrl: string,
+  ): void {
+    this.#urls.set(
+      instrumentAdmin,
+      normalizeUrl(
+        registryUrl,
+      ),
+    );
   }
 
   registryUrlForAdmin(

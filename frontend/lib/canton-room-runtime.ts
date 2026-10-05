@@ -19,6 +19,7 @@ import {
 
 import {
   isCantonDealTemplate,
+  type CantonDealTemplateName,
 } from "../../src/canton/deal-templates.js";
 
 import {
@@ -65,31 +66,75 @@ import type {
   PlainMessage,
 } from "../../src/messaging/types.js";
 
-const CANTON_CBTC_NETWORKS = {
+type CantonNetworkName =
+  | "devnet"
+  | "testnet"
+  | "mainnet";
+
+interface CantonNetworkConfig {
+  utilityBaseUrl: string;
+  scanUrl: string;
+  cbtcAdmin: string;
+  usdcxAdmin?: string;
+  ccAdmin?: string;
+}
+
+interface CantonAssetConfig {
+  instrumentId: string;
+  instrumentAdmin?: string;
+}
+
+const CANTON_NETWORKS:
+  Record<
+    CantonNetworkName,
+    CantonNetworkConfig
+  > = {
   devnet: {
-    instrumentAdmin:
-      "cbtc-network::12202a83c6f4082217c175e29bc53da5f2703ba2675778ab99217a5a881a949203ff",
-    registryUrl:
+    utilityBaseUrl:
       "https://api.utilities.digitalasset-dev.com",
+
+    scanUrl:
+      "https://scan.sv-1.dev.global.canton.network.sync.global",
+
+    cbtcAdmin:
+      "cbtc-network::12202a83c6f4082217c175e29bc53da5f2703ba2675778ab99217a5a881a949203ff",
   },
 
   testnet: {
-    instrumentAdmin:
-      "cbtc-network::12201b1741b63e2494e4214cf0bedc3d5a224da53b3bf4d76dba468f8e97eb15508f",
-    registryUrl:
+    utilityBaseUrl:
       "https://api.utilities.digitalasset-staging.com",
+
+    scanUrl:
+      "https://scan.sv-1.test.global.canton.network.sync.global",
+
+    cbtcAdmin:
+      "cbtc-network::12201b1741b63e2494e4214cf0bedc3d5a224da53b3bf4d76dba468f8e97eb15508f",
+
+    usdcxAdmin:
+      "decentralized-usdc-interchain-rep::122049e2af8a725bd19759320fc83c638e7718973eac189d8f201309c512d1ffec61",
+
+    ccAdmin:
+      "DSO::1220f22a8b8f2d813c25b9a684dc4dd52b532a0174d8e73a13cdf2baabfff7518337",
   },
 
   mainnet: {
-    instrumentAdmin:
-      "cbtc-network::12205af3b949a04776fc48cdcc05a060f6bda2e470632935f375d1049a8546a3b262",
-    registryUrl:
+    utilityBaseUrl:
       "https://api.utilities.digitalasset.com",
-  },
-} as const;
 
-function configuredCbtcNetwork() {
-  const network =
+    scanUrl:
+      "https://scan.sv-1.global.canton.network.sync.global",
+
+    cbtcAdmin:
+      "cbtc-network::12205af3b949a04776fc48cdcc05a060f6bda2e470632935f375d1049a8546a3b262",
+
+    usdcxAdmin:
+      "decentralized-usdc-interchain-rep::12208115f1e168dd7e792320be9c4ca720c751a02a3053c7606e1c1cd3dad9bf60ef",
+  },
+};
+
+function configuredCantonNetworkName():
+  CantonNetworkName {
+  const value =
     (
       process.env
         .NEXT_PUBLIC_CANTON_NETWORK ??
@@ -99,18 +144,161 @@ function configuredCbtcNetwork() {
       .toLowerCase();
 
   if (
-    network !== "devnet" &&
-    network !== "testnet" &&
-    network !== "mainnet"
+    value !== "devnet" &&
+    value !== "testnet" &&
+    value !== "mainnet"
   ) {
     throw new Error(
-      `Unsupported Canton network: ${network}`,
+      `Unsupported Canton network: ${value}`,
     );
   }
 
-  return CANTON_CBTC_NETWORKS[
-    network
+  return value;
+}
+
+function configuredCantonNetwork():
+  CantonNetworkConfig {
+  return CANTON_NETWORKS[
+    configuredCantonNetworkName()
   ];
+}
+
+function registrarRegistryUrl(
+  utilityBaseUrl: string,
+  registrarParty: string,
+): string {
+  return (
+    `${utilityBaseUrl}` +
+    `/api/token-standard/v0/registrars/` +
+    `${encodeURIComponent(registrarParty)}`
+  );
+}
+
+function configuredCcAdmin():
+  string | undefined {
+  const value =
+    process.env
+      .NEXT_PUBLIC_CANTON_CC_ADMIN
+      ?.trim();
+
+  if (value) {
+    return value;
+  }
+
+  return configuredCantonNetwork()
+    .ccAdmin;
+}
+
+function configuredCantonRegistryEntries():
+  Record<string, string> {
+  const network =
+    configuredCantonNetwork();
+
+  const entries:
+    Record<string, string> = {
+    [network.cbtcAdmin]:
+      registrarRegistryUrl(
+        network.utilityBaseUrl,
+        network.cbtcAdmin,
+      ),
+  };
+
+  if (network.usdcxAdmin) {
+    entries[
+      network.usdcxAdmin
+    ] =
+      registrarRegistryUrl(
+        network.utilityBaseUrl,
+        network.usdcxAdmin,
+      );
+  }
+
+  const ccAdmin =
+    configuredCcAdmin();
+
+  if (ccAdmin) {
+    entries[ccAdmin] =
+      process.env
+        .NEXT_PUBLIC_CANTON_CC_REGISTRY_URL
+        ?.trim() ||
+      `${network.scanUrl}/registry/`;
+  }
+
+  return entries;
+}
+
+function configuredCantonAsset(
+  value: string,
+): CantonAssetConfig {
+  const clean =
+    value.trim();
+
+  const normalized =
+    clean
+      .toUpperCase()
+      .replace(/\s+/g, " ");
+
+  const network =
+    configuredCantonNetwork();
+
+  if (normalized === "CBTC") {
+    return {
+      instrumentId:
+        "CBTC",
+
+      instrumentAdmin:
+        network.cbtcAdmin,
+    };
+  }
+
+  if (
+    normalized === "USDC" ||
+    normalized === "USDCX"
+  ) {
+    if (!network.usdcxAdmin) {
+      throw new Error(
+        "USDCx is not configured for Canton DevNet; use TestNet or MainNet",
+      );
+    }
+
+    return {
+      instrumentId:
+        "USDCx",
+
+      instrumentAdmin:
+        network.usdcxAdmin,
+    };
+  }
+
+  if (
+    normalized === "CC" ||
+    normalized ===
+      "CANTON COIN" ||
+    normalized ===
+      "AMULET"
+  ) {
+    const admin =
+      configuredCcAdmin();
+
+    if (!admin) {
+      throw new Error(
+        "Canton Coin requires NEXT_PUBLIC_CANTON_CC_ADMIN from the network DSO",
+      );
+    }
+
+    return {
+      instrumentId:
+        "Amulet",
+
+      instrumentAdmin:
+        admin,
+    };
+  }
+
+  return {
+    instrumentId:
+      clean,
+  };
 }
 
 export type CantonRoomStatus =
@@ -150,6 +338,14 @@ export interface CantonRoomOfferInput {
   expiresInHours?: number;
 }
 
+export type CantonRoomDealLifecycle =
+  | "proposal"
+  | "accepted"
+  | "submitted"
+  | "revision_requested"
+  | "approved"
+  | "settled";
+
 export interface CantonRoomOffer {
   dealId: string;
   contractId: string;
@@ -173,16 +369,29 @@ export interface CantonRoomOffer {
     | "pending"
     | "accepted"
     | "rejected";
+
+  lifecycle?:
+    CantonRoomDealLifecycle;
+
   agreementContractId?: string;
   allocationContractId?: string;
   escrowContractId?: string;
+  fulfillmentContractId?: string;
+  revisionRequestContractId?: string;
+  approvalContractId?: string;
+  settlementReceiptContractId?: string;
 }
 
 export interface CantonRoomDealAction {
   dealId: string;
   action:
     | "accept"
-    | "reject";
+    | "reject"
+    | "submit_fulfillment"
+    | "request_revision"
+    | "submit_revision"
+    | "approve_fulfillment"
+    | "settled";
   sentAt: number;
   cantonContractId?: string;
 }
@@ -463,9 +672,6 @@ export class CantonRoomRuntime {
         ledger,
       );
 
-    const cbtcNetwork =
-      configuredCbtcNetwork();
-
     const tokenWallet =
       new CantonTokenWallet({
         ledger,
@@ -474,10 +680,9 @@ export class CantonRoomRuntime {
           offerProvider,
 
         registryDirectory:
-          new StaticCantonRegistryDirectory({
-            [cbtcNetwork.instrumentAdmin]:
-              cbtcNetwork.registryUrl,
-          }),
+          new StaticCantonRegistryDirectory(
+            configuredCantonRegistryEntries(),
+          ),
       });
 
     const runtime =
@@ -707,16 +912,13 @@ export class CantonRoomRuntime {
     const amount =
       input.amount.trim();
 
-    const rawInstrumentId =
-      input.instrumentId
-        .trim();
+    const asset =
+      configuredCantonAsset(
+        input.instrumentId,
+      );
 
     const instrumentId =
-      rawInstrumentId
-        .toUpperCase() ===
-        "CBTC"
-        ? "CBTC"
-        : rawInstrumentId;
+      asset.instrumentId;
 
     const terms =
       input.terms.trim();
@@ -739,10 +941,9 @@ export class CantonRoomRuntime {
       "canton";
 
     const instrumentAdmin =
-      settlementRail === "canton" &&
-      instrumentId === "CBTC"
-        ? configuredCbtcNetwork()
-            .instrumentAdmin
+      settlementRail ===
+        "canton"
+        ? asset.instrumentAdmin
         : undefined;
 
     if (
@@ -792,11 +993,16 @@ export class CantonRoomRuntime {
 
     const canonicalTerms =
       JSON.stringify({
-        version: 2,
+        version: 3,
         dealType,
         settlementRail,
         amount,
         instrumentId,
+
+        instrumentAdmin:
+          instrumentAdmin ??
+          null,
+
         terms,
         fields,
         expiresAt,
@@ -908,6 +1114,9 @@ export class CantonRoomRuntime {
 
       status:
         "pending",
+
+      lifecycle:
+        "proposal",
     };
   }
 
@@ -972,6 +1181,9 @@ export class CantonRoomRuntime {
       status:
         "accepted",
 
+      lifecycle:
+        "accepted",
+
       agreementContractId:
         agreement.contractId,
 
@@ -1022,11 +1234,315 @@ export class CantonRoomRuntime {
     };
   }
 
+  async submitFulfillment(
+    offer:
+      CantonRoomOffer,
+
+    proof:
+      string,
+  ): Promise<CantonRoomOffer> {
+    if (!offer.own) {
+      throw new Error(
+        "Only the fulfiller can submit fulfillment",
+      );
+    }
+
+    const clean =
+      proof.trim();
+
+    if (!clean) {
+      throw new Error(
+        "Fulfillment proof is required",
+      );
+    }
+
+    const source =
+      await this.findDealContract(
+        offer.dealId,
+        [
+          "DealEscrow",
+          "DealAgreement",
+        ],
+      );
+
+    const fulfillmentContractId =
+      await this.offerProvider
+        .submitFulfillment(
+          this.activeParty,
+          source.contractId,
+          await sha256Hex(clean),
+        );
+
+    await this.sendDealAction(
+      offer.dealId,
+      "submit_fulfillment",
+      fulfillmentContractId,
+    );
+
+    await this.sendText(
+      `[Fulfillment submitted]\n${clean}`,
+    );
+
+    return {
+      ...offer,
+      status: "accepted",
+      lifecycle: "submitted",
+      fulfillmentContractId,
+    };
+  }
+
+  async requestRevision(
+    offer:
+      CantonRoomOffer,
+
+    note:
+      string,
+  ): Promise<CantonRoomOffer> {
+    if (offer.own) {
+      throw new Error(
+        "Only the reviewer can request a revision",
+      );
+    }
+
+    const clean =
+      note.trim();
+
+    if (!clean) {
+      throw new Error(
+        "Revision note is required",
+      );
+    }
+
+    const fulfillment =
+      await this.findDealContract(
+        offer.dealId,
+        [
+          "DealFulfillment",
+        ],
+      );
+
+    const revisionRequestContractId =
+      await this.offerProvider
+        .requestRevision(
+          this.activeParty,
+          fulfillment.contractId,
+          await sha256Hex(clean),
+        );
+
+    await this.sendDealAction(
+      offer.dealId,
+      "request_revision",
+      revisionRequestContractId,
+    );
+
+    await this.sendText(
+      `[Revision requested]\n${clean}`,
+    );
+
+    return {
+      ...offer,
+      status: "accepted",
+      lifecycle: "revision_requested",
+      revisionRequestContractId,
+    };
+  }
+
+  async submitRevision(
+    offer:
+      CantonRoomOffer,
+
+    proof:
+      string,
+  ): Promise<CantonRoomOffer> {
+    if (!offer.own) {
+      throw new Error(
+        "Only the fulfiller can submit a revision",
+      );
+    }
+
+    const clean =
+      proof.trim();
+
+    if (!clean) {
+      throw new Error(
+        "Revision proof is required",
+      );
+    }
+
+    const revision =
+      await this.findDealContract(
+        offer.dealId,
+        [
+          "DealRevisionRequest",
+        ],
+      );
+
+    const fulfillmentContractId =
+      await this.offerProvider
+        .submitRevision(
+          this.activeParty,
+          revision.contractId,
+          await sha256Hex(clean),
+        );
+
+    await this.sendDealAction(
+      offer.dealId,
+      "submit_revision",
+      fulfillmentContractId,
+    );
+
+    await this.sendText(
+      `[Revision submitted]\n${clean}`,
+    );
+
+    return {
+      ...offer,
+      status: "accepted",
+      lifecycle: "submitted",
+      fulfillmentContractId,
+    };
+  }
+
+  async approveFulfillment(
+    offer:
+      CantonRoomOffer,
+  ): Promise<CantonRoomOffer> {
+    if (offer.own) {
+      throw new Error(
+        "Only the reviewer can approve fulfillment",
+      );
+    }
+
+    const fulfillment =
+      await this.findDealContract(
+        offer.dealId,
+        [
+          "DealFulfillment",
+        ],
+      );
+
+    const approvalContractId =
+      await this.offerProvider
+        .approveFulfillment(
+          this.activeParty,
+          fulfillment.contractId,
+        );
+
+    await this.sendDealAction(
+      offer.dealId,
+      "approve_fulfillment",
+      approvalContractId,
+    );
+
+    return {
+      ...offer,
+      status: "accepted",
+      lifecycle: "approved",
+      approvalContractId,
+    };
+  }
+
+  async settleOffer(
+    offer:
+      CantonRoomOffer,
+  ): Promise<CantonRoomOffer> {
+    if (!offer.own) {
+      throw new Error(
+        "Only the fulfiller can settle the escrow",
+      );
+    }
+
+    if (!offer.instrumentAdmin) {
+      throw new Error(
+        "This deal has no Canton Token Standard escrow",
+      );
+    }
+
+    const approval =
+      await this.findDealContract(
+        offer.dealId,
+        [
+          "FulfillmentApproval",
+        ],
+      );
+
+    const receipt =
+      await this.tokenWallet
+        .settleWithRegistry(
+          this.activeParty,
+          approval.contractId,
+        );
+
+    await this.sendDealAction(
+      offer.dealId,
+      "settled",
+      receipt.receiptContractId,
+    );
+
+    return {
+      ...offer,
+      status: "accepted",
+      lifecycle: "settled",
+      approvalContractId:
+        approval.contractId,
+      settlementReceiptContractId:
+        receipt.receiptContractId,
+    };
+  }
+
+  private async findDealContract(
+    dealId:
+      string,
+
+    templateNames:
+      readonly CantonDealTemplateName[],
+  ) {
+    const contracts =
+      await this.ledger
+        .queryActiveContracts(
+          this.activeParty,
+        );
+
+    for (
+      const templateName
+      of templateNames
+    ) {
+      const contract =
+        contracts
+          .filter(
+            (candidate) =>
+              isCantonDealTemplate(
+                candidate.templateId,
+                templateName,
+              ) &&
+              readDealField(
+                candidate.createArgument,
+                "dealId",
+              ) ===
+                dealId,
+          )
+          .at(-1);
+
+      if (contract) {
+        return contract;
+      }
+    }
+
+    throw new Error(
+      `VINSS active deal contract not found for ${dealId}`,
+    );
+  }
+
   private async sendDealAction(
     dealId: string,
     action:
       | "accept"
-      | "reject",
+      | "reject"
+      | "submit_fulfillment"
+      | "request_revision"
+      | "submit_revision"
+      | "approve_fulfillment"
+      | "settled",
     cantonContractId?:
       string,
   ): Promise<void> {
@@ -1423,12 +1939,7 @@ async function toRoomOffer(
     localInstallationId;
 
   const instrumentAdmin =
-    parsed.settlementRail === "canton" &&
-    parsed.instrumentId
-      .toUpperCase() === "CBTC"
-      ? configuredCbtcNetwork()
-          .instrumentAdmin
-      : undefined;
+    parsed.instrumentAdmin;
 
   return {
     dealId:
@@ -1483,6 +1994,9 @@ async function toRoomOffer(
 
     status:
       "pending",
+
+    lifecycle:
+      "proposal",
   };
 }
 
@@ -1495,11 +2009,8 @@ function toRoomDealAction(
   if (
     message.content.type !==
       "deal_action" ||
-    (
-      message.content.action !==
-        "accept" &&
-      message.content.action !==
-        "reject"
+    !isCantonRoomDealAction(
+      message.content.action,
     )
   ) {
     return undefined;
@@ -1532,11 +2043,28 @@ function toRoomDealAction(
   };
 }
 
+function isCantonRoomDealAction(
+  value:
+    unknown,
+): value is
+  CantonRoomDealAction["action"] {
+  return (
+    value === "accept" ||
+    value === "reject" ||
+    value === "submit_fulfillment" ||
+    value === "request_revision" ||
+    value === "submit_revision" ||
+    value === "approve_fulfillment" ||
+    value === "settled"
+  );
+}
+
 function parseCanonicalTerms(
   value: string,
 ): {
   amount: string;
   instrumentId: string;
+  instrumentAdmin?: string;
   terms: string;
   dealType:
     CantonRoomDealType;
@@ -1573,6 +2101,22 @@ function parseCanonicalTerms(
 
     instrumentId:
       parsed.instrumentId,
+
+    ...(
+      typeof parsed
+        .instrumentAdmin ===
+        "string" &&
+      parsed
+        .instrumentAdmin
+        .trim()
+        ? {
+            instrumentAdmin:
+              parsed
+                .instrumentAdmin
+                .trim(),
+          }
+        : {}
+    ),
 
     terms:
       parsed.terms,

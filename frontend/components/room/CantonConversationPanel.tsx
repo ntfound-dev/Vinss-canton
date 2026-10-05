@@ -27,6 +27,30 @@ interface Props {
   onRejectOffer(
     offer: CantonRoomOffer,
   ): void | Promise<void>;
+
+  onSubmitFulfillment(
+    offer: CantonRoomOffer,
+    proof: string,
+  ): void | Promise<void>;
+
+  onRequestRevision(
+    offer: CantonRoomOffer,
+    note: string,
+  ): void | Promise<void>;
+
+  onSubmitRevision(
+    offer: CantonRoomOffer,
+    proof: string,
+  ): void | Promise<void>;
+
+  onApproveFulfillment(
+    offer: CantonRoomOffer,
+  ): void | Promise<void>;
+
+  onSettleOffer(
+    offer: CantonRoomOffer,
+  ): void | Promise<void>;
+
   draft: string;
   busy: boolean;
   configured: boolean;
@@ -117,6 +141,11 @@ export function CantonConversationPanel({
   onCreateOffer,
   onAcceptOffer,
   onRejectOffer,
+  onSubmitFulfillment,
+  onRequestRevision,
+  onSubmitRevision,
+  onApproveFulfillment,
+  onSettleOffer,
 }: Props) {
   const ready = configured && status === "ready";
 
@@ -198,6 +227,21 @@ export function CantonConversationPanel({
                 busy={busy}
                 onAccept={onAcceptOffer}
                 onReject={onRejectOffer}
+                onSubmitFulfillment={
+                  onSubmitFulfillment
+                }
+                onRequestRevision={
+                  onRequestRevision
+                }
+                onSubmitRevision={
+                  onSubmitRevision
+                }
+                onApproveFulfillment={
+                  onApproveFulfillment
+                }
+                onSettle={
+                  onSettleOffer
+                }
               />
             ))}
 
