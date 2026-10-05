@@ -1,0 +1,222 @@
+name: Deploy Canton DAR
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target Canton environment
+        required: true
+        type: choice
+        options:
+          - devnet
+          - testnet
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canton-dar-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy VINSS DAR to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install DPM
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          curl -fsSL \
+            https://get.digitalasset.com/install/install.sh \
+            | sh
+
+          echo "$HOME/.dpm/bin" \
+            >> "$GITHUB_PATH"
+
+      - name: Install Daml SDK
+        run: dpm install 3.5.10
+
+      - name: Build VINSS DAR
+        run: dpm build
+
+      - name: Locate and inspect DAR
+        id: dar
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DAR="$(
+            find .daml/dist \
+              -type f \
+              -name '*.dar' \
+              | head -n 1
+          )"
+
+          test -n "$DAR"
+          test -f "$DAR"
+
+          MAIN_PACKAGE_ID="$(
+            dpm damlc inspect-dar \
+              --json "$DAR" \
+              | jq -r \
+                '.main_package_id'
+          )"
+
+          test -n "$MAIN_PACKAGE_ID"
+          test "$MAIN_PACKAGE_ID" != "null"
+
+          echo "dar=$DAR" \
+            >> "$GITHUB_OUTPUT"
+
+          echo "package_id=$MAIN_PACKAGE_ID" \
+            >> "$GITHUB_OUTPUT"
+
+          echo "DAR: $DAR"
+          echo "Main package: $MAIN_PACKAGE_ID"
+          sha256sum "$DAR"
+
+      - name: Upload DAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vinss-canton-${{ inputs.environment }}-${{ github.sha }}
+          path: ${{ steps.dar.outputs.dar }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Validate deployment configuration
+        env:
+          CANTON_LEDGER_URL: ${{ secrets.CANTON_LEDGER_URL }}
+          CANTON_AUTH_TOKEN: ${{ secrets.CANTON_AUTH_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CANTON_LEDGER_URL:-}" ]; then
+            echo "Missing CANTON_LEDGER_URL environment secret"
+            exit 1
+          fi
+
+          if [ -z "${CANTON_AUTH_TOKEN:-}" ]; then
+            echo "Missing CANTON_AUTH_TOKEN environment secret"
+            exit 1
+          fi
+
+      - name: Upload VINSS DAR to Canton
+        env:
+          CANTON_LEDGER_URL: ${{ secrets.CANTON_LEDGER_URL }}
+          CANTON_AUTH_TOKEN: ${{ secrets.CANTON_AUTH_TOKEN }}
+          CANTON_SYNCHRONIZER_ID: ${{ secrets.CANTON_SYNCHRONIZER_ID }}
+          DAR: ${{ steps.dar.outputs.dar }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          LEDGER_URL="${CANTON_LEDGER_URL%/}"
+
+          UPLOAD_URL="${LEDGER_URL}/v2/packages"
+
+          if [ -n "${CANTON_SYNCHRONIZER_ID:-}" ]; then
+            ENCODED_SYNC="$(
+              jq -nr \
+                --arg value \
+                  "$CANTON_SYNCHRONIZER_ID" \
+                '$value | @uri'
+            )"
+
+            UPLOAD_URL="${
+              UPLOAD_URL
+            }?vetAllPackages=true&synchronizerId=${
+              ENCODED_SYNC
+            }"
+          fi
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            -X POST \
+            "$UPLOAD_URL" \
+            -H \
+              "Authorization: Bearer ${CANTON_AUTH_TOKEN}" \
+            -H \
+              "Content-Type: application/octet-stream" \
+            --data-binary \
+              @"$DAR"
+
+          echo
+          echo "VINSS DAR upload accepted"
+
+      - name: Verify package registration
+        env:
+          CANTON_LEDGER_URL: ${{ secrets.CANTON_LEDGER_URL }}
+          CANTON_AUTH_TOKEN: ${{ secrets.CANTON_AUTH_TOKEN }}
+          PACKAGE_ID: ${{ steps.dar.outputs.package_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          LEDGER_URL="${CANTON_LEDGER_URL%/}"
+
+          registered=0
+
+          for attempt in $(seq 1 60); do
+            STATUS="$(
+              curl \
+                --fail \
+                --silent \
+                --show-error \
+                "${LEDGER_URL}/v2/packages/${PACKAGE_ID}/status" \
+                -H \
+                  "Authorization: Bearer ${CANTON_AUTH_TOKEN}" \
+                2>/dev/null \
+                || true
+            )"
+
+            if echo "$STATUS" \
+              | jq -e \
+                '.packageStatus == "PACKAGE_STATUS_REGISTERED"' \
+                >/dev/null 2>&1; then
+
+              registered=1
+
+              echo \
+                "VINSS package registered: ${PACKAGE_ID}"
+
+              break
+            fi
+
+            sleep 2
+          done
+
+          if [ "$registered" != "1" ]; then
+            echo \
+              "VINSS package did not reach PACKAGE_STATUS_REGISTERED"
+
+            exit 1
+          fi
+
+      - name: Deployment summary
+        env:
+          PACKAGE_ID: ${{ steps.dar.outputs.package_id }}
+        shell: bash
+        run: |
+          {
+            echo "## VINSS Canton deployment"
+            echo
+            echo "- Environment: \`${{ inputs.environment }}\`"
+            echo "- Package ID: \`${PACKAGE_ID}\`"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
