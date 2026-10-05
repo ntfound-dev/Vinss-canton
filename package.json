@@ -5,7 +5,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "tsc"
+    "build": "tsc",
+    "start": "node server.mjs"
   },
   "devDependencies": {
     "next": "^16.3.6",
