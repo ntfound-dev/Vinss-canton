@@ -707,9 +707,16 @@ export class CantonRoomRuntime {
     const amount =
       input.amount.trim();
 
-    const instrumentId =
+    const rawInstrumentId =
       input.instrumentId
         .trim();
+
+    const instrumentId =
+      rawInstrumentId
+        .toUpperCase() ===
+        "CBTC"
+        ? "CBTC"
+        : rawInstrumentId;
 
     const terms =
       input.terms.trim();
@@ -730,6 +737,13 @@ export class CantonRoomRuntime {
       input.settlementRail
         ?.trim() ||
       "canton";
+
+    const instrumentAdmin =
+      settlementRail === "canton" &&
+      instrumentId === "CBTC"
+        ? configuredCbtcNetwork()
+            .instrumentAdmin
+        : undefined;
 
     if (
       !/^\d+(?:\.\d+)?$/.test(
@@ -817,6 +831,11 @@ export class CantonRoomRuntime {
             termsHash,
             amount,
             instrumentId,
+
+            ...(instrumentAdmin
+              ? { instrumentAdmin }
+              : {}),
+
             expiresAt,
           },
         );
@@ -872,6 +891,11 @@ export class CantonRoomRuntime {
 
       amount,
       instrumentId,
+
+      ...(instrumentAdmin
+        ? { instrumentAdmin }
+        : {}),
+
       terms,
       dealType,
       fields,
@@ -911,6 +935,30 @@ export class CantonRoomRuntime {
           offer.contractId,
         );
 
+    let allocationContractId:
+      string | undefined;
+
+    let escrowContractId:
+      string | undefined;
+
+    if (
+      agreement.terms
+        .instrumentAdmin
+    ) {
+      const funded =
+        await this.tokenWallet
+          .allocateAndFundEscrow(
+            this.activeParty,
+            agreement,
+          );
+
+      allocationContractId =
+        funded.allocationContractId;
+
+      escrowContractId =
+        funded.escrowContractId;
+    }
+
     await this
       .sendDealAction(
         offer.dealId,
@@ -926,6 +974,14 @@ export class CantonRoomRuntime {
 
       agreementContractId:
         agreement.contractId,
+
+      ...(allocationContractId
+        ? { allocationContractId }
+        : {}),
+
+      ...(escrowContractId
+        ? { escrowContractId }
+        : {}),
     };
   }
 
@@ -1094,6 +1150,18 @@ export class CantonRoomRuntime {
           "Encrypted offer details do not match the Canton proposal",
         );
       }
+    }
+
+    if (
+      readOptionalDealField(
+        args,
+        "instrumentAdmin",
+      ) !==
+      offer.instrumentAdmin
+    ) {
+      throw new Error(
+        "Canton instrument registry does not match the encrypted offer",
+      );
     }
   }
 
@@ -1354,6 +1422,14 @@ async function toRoomOffer(
       .senderInstallationId ===
     localInstallationId;
 
+  const instrumentAdmin =
+    parsed.settlementRail === "canton" &&
+    parsed.instrumentId
+      .toUpperCase() === "CBTC"
+      ? configuredCbtcNetwork()
+          .instrumentAdmin
+      : undefined;
+
   return {
     dealId:
       content.dealId,
@@ -1380,6 +1456,10 @@ async function toRoomOffer(
 
     instrumentId:
       parsed.instrumentId,
+
+    ...(instrumentAdmin
+      ? { instrumentAdmin }
+      : {}),
 
     terms:
       parsed.terms,
@@ -1628,6 +1708,20 @@ async function sha256Hex(
           ),
     )
     .join("");
+}
+
+function readOptionalDealField(
+  value:
+    Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const result =
+    value[key];
+
+  return typeof result ===
+    "string"
+    ? result
+    : undefined;
 }
 
 function readDealField(
