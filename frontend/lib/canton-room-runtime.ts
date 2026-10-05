@@ -10,6 +10,14 @@ import {
 } from "../../src/canton/http-offer-provider.js";
 
 import {
+  StaticCantonRegistryDirectory,
+} from "../../src/canton/registry-directory.js";
+
+import {
+  CantonTokenWallet,
+} from "../../src/canton/token-wallet.js";
+
+import {
   isCantonDealTemplate,
 } from "../../src/canton/deal-templates.js";
 
@@ -57,6 +65,54 @@ import type {
   PlainMessage,
 } from "../../src/messaging/types.js";
 
+const CANTON_CBTC_NETWORKS = {
+  devnet: {
+    instrumentAdmin:
+      "cbtc-network::12202a83c6f4082217c175e29bc53da5f2703ba2675778ab99217a5a881a949203ff",
+    registryUrl:
+      "https://api.utilities.digitalasset-dev.com",
+  },
+
+  testnet: {
+    instrumentAdmin:
+      "cbtc-network::12201b1741b63e2494e4214cf0bedc3d5a224da53b3bf4d76dba468f8e97eb15508f",
+    registryUrl:
+      "https://api.utilities.digitalasset-staging.com",
+  },
+
+  mainnet: {
+    instrumentAdmin:
+      "cbtc-network::12205af3b949a04776fc48cdcc05a060f6bda2e470632935f375d1049a8546a3b262",
+    registryUrl:
+      "https://api.utilities.digitalasset.com",
+  },
+} as const;
+
+function configuredCbtcNetwork() {
+  const network =
+    (
+      process.env
+        .NEXT_PUBLIC_CANTON_NETWORK ??
+      "devnet"
+    )
+      .trim()
+      .toLowerCase();
+
+  if (
+    network !== "devnet" &&
+    network !== "testnet" &&
+    network !== "mainnet"
+  ) {
+    throw new Error(
+      `Unsupported Canton network: ${network}`,
+    );
+  }
+
+  return CANTON_CBTC_NETWORKS[
+    network
+  ];
+}
+
 export type CantonRoomStatus =
   | "connecting"
   | "waiting_peer"
@@ -102,6 +158,7 @@ export interface CantonRoomOffer {
   buyer: string;
   amount: string;
   instrumentId: string;
+  instrumentAdmin?: string;
   terms: string;
   dealType:
     CantonRoomDealType;
@@ -117,6 +174,8 @@ export interface CantonRoomOffer {
     | "accepted"
     | "rejected";
   agreementContractId?: string;
+  allocationContractId?: string;
+  escrowContractId?: string;
 }
 
 export interface CantonRoomDealAction {
@@ -218,6 +277,9 @@ export class CantonRoomRuntime {
 
     private readonly offerProvider:
       HttpCantonOfferProvider,
+
+    private readonly tokenWallet:
+      CantonTokenWallet,
 
     private readonly activeParty:
       string,
@@ -396,6 +458,28 @@ export class CantonRoomRuntime {
         ),
       );
 
+    const offerProvider =
+      new HttpCantonOfferProvider(
+        ledger,
+      );
+
+    const cbtcNetwork =
+      configuredCbtcNetwork();
+
+    const tokenWallet =
+      new CantonTokenWallet({
+        ledger,
+
+        dealProvider:
+          offerProvider,
+
+        registryDirectory:
+          new StaticCantonRegistryDirectory({
+            [cbtcNetwork.instrumentAdmin]:
+              cbtcNetwork.registryUrl,
+          }),
+      });
+
     const runtime =
       new CantonRoomRuntime(
         input,
@@ -405,9 +489,8 @@ export class CantonRoomRuntime {
         peerMember,
         live,
         ledger,
-        new HttpCantonOfferProvider(
-          ledger,
-        ),
+        offerProvider,
+        tokenWallet,
         directory.activeParty(),
       );
 

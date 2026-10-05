@@ -28,7 +28,7 @@ const OFFER_HELP = {
     "Complete the main terms first. Optional fields can be left empty when they are not important to your agreement.",
     "More Terms is for additional conditions that can make the agreement clearer, such as deadlines, acceptance requirements, revisions, delivery conditions or inspection periods.",
     "Before anything is sent, Review Offer lets you check the complete proposal. The other participant can then Accept or Reject it.",
-    "When an Offer is accepted it becomes a DealAgreement on Canton. Accepting still does not move funds — fulfillment is a separate step.",
+    "When a CBTC Canton Offer is accepted, the buyer allocates CBTC into non-custodial Canton Token Standard escrow. Fulfillment and release remain separate steps.",
   ],
 };
 

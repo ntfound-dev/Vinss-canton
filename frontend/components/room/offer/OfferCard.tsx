@@ -138,10 +138,17 @@ export function OfferCard({
 
         {offer.status === "accepted" && (
           <div className="mt-3 border-t border-signal/20 pt-2.5 text-[9px] text-signal/70">
-            DealAgreement
-            {offer.agreementContractId
-              ? ` · ${shortId(offer.agreementContractId)}`
-              : " · accepted"}
+            {offer.instrumentAdmin
+              ? "Canton Token Standard escrow"
+              : "DealAgreement"}
+
+            {offer.instrumentAdmin
+              ? offer.escrowContractId
+                ? ` · ${shortId(offer.escrowContractId)}`
+                : " · funded"
+              : offer.agreementContractId
+                ? ` · ${shortId(offer.agreementContractId)}`
+                : " · accepted"}
           </div>
         )}
 
