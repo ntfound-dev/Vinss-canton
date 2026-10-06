@@ -1825,16 +1825,33 @@ function installationFor(
     return existing;
   }
 
-  const created =
+  // PeerEntryForm exposes this ID before the wallet session exists.
+  // Reuse it as the real OpenMLS installation so the ID shared with
+  // the peer is exactly the one that publishes the KeyPackage.
+  const previewKey =
+    "vinss:installation:local-preview";
+
+  const preview =
+    window.localStorage
+      .getItem(previewKey);
+
+  const installationId =
+    preview ||
     crypto.randomUUID();
 
   window.localStorage
     .setItem(
       key,
-      created,
+      installationId,
     );
 
-  return created;
+  window.localStorage
+    .setItem(
+      previewKey,
+      installationId,
+    );
+
+  return installationId;
 }
 
 function toRoomMessage(

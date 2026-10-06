@@ -61,7 +61,7 @@ export function PeerEntryForm({
     });
 
     router.push(
-      `/room/\( {encodeURIComponent(roomId.trim())}? \){params.toString()}`,
+      `/room/${encodeURIComponent(roomId.trim())}?${params.toString()}`,
     );
   }
 
