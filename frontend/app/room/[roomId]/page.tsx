@@ -32,10 +32,12 @@ import {
   CantonConversationPanel,
 } from "@/components/room/CantonConversationPanel";
 
+import * as cantonSdk
+  from "@canton-network/dapp-sdk";
+
 import {
-  CantonWalletConnect,
-  type CantonWalletSession,
-} from "@/components/CantonWalletConnect";
+  initCantonWalletSdk,
+} from "@/lib/canton-wallet-config";
 
 export default function RoomPage() {
   const params =
@@ -75,17 +77,13 @@ export default function RoomPage() {
     >(null);
 
   const [
-    walletSession,
-    setWalletSession,
+    walletParty,
+    setWalletParty,
   ] =
     useState<
-      CantonWalletSession |
+      string |
       null
     >(null);
-
-  const walletParty =
-    walletSession
-      ?.partyId;
 
   const [status, setStatus] =
     useState<
@@ -112,6 +110,103 @@ export default function RoomPage() {
       string |
       null
     >(null);
+
+  useEffect(
+    () => {
+      let disposed =
+        false;
+
+      void (async () => {
+        try {
+          await initCantonWalletSdk();
+
+          const connection =
+            await cantonSdk
+              .isConnected();
+
+          if (
+            !connection
+              .isConnected
+          ) {
+            if (
+              !disposed
+            ) {
+              setWalletParty(
+                null,
+              );
+
+              setError(
+                "Connect your Canton wallet from Home before entering a private room.",
+              );
+            }
+
+            return;
+          }
+
+          const accounts =
+            await cantonSdk
+              .listAccounts();
+
+          const primary =
+            accounts.find(
+              (account) =>
+                account.primary &&
+                account.status !==
+                  "removed" &&
+                account.disabled !==
+                  true,
+            ) ??
+            accounts.find(
+              (account) =>
+                account.status !==
+                  "removed" &&
+                account.disabled !==
+                  true,
+            );
+
+          if (!primary) {
+            throw new Error(
+              "No usable Canton Party is available in the connected wallet",
+            );
+          }
+
+          if (
+            !disposed
+          ) {
+            setWalletParty(
+              primary.partyId,
+            );
+
+            setError(
+              null,
+            );
+          }
+        } catch (
+          cause
+        ) {
+          if (
+            !disposed
+          ) {
+            setWalletParty(
+              null,
+            );
+
+            setError(
+              errorText(
+                cause,
+              ),
+            );
+          }
+        }
+      })();
+
+      return () => {
+        disposed =
+          true;
+      };
+    },
+    [],
+  );
 
   useEffect(
     () => {
@@ -566,24 +661,19 @@ export default function RoomPage() {
           status={status}
         />
 
-        <div className="mb-4">
-          <CantonWalletConnect
-            onConnected={
-              setWalletSession
-            }
-            onDisconnected={() => {
-              setWalletSession(
-                null,
-              );
-              setRuntime(
-                null,
-              );
-              setStatus(
-                "idle",
-              );
-            }}
-          />
-        </div>
+        {walletParty && (
+          <div className="mb-4 flex items-center gap-2 rounded-xl border border-signal/15 bg-signal/[0.04] px-3 py-2">
+            <span className="vinss-live-dot" />
+
+            <span className="text-[8px] uppercase tracking-[0.12em] text-paper/35">
+              Canton wallet connected
+            </span>
+
+            <span className="ml-auto max-w-[180px] truncate text-[9px] text-paper/45">
+              {shortId(walletParty)}
+            </span>
+          </div>
+        )}
 
         <RoomTabs
           value={tab}

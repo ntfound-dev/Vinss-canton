@@ -1,4 +1,5 @@
 import { PeerEntryForm } from "@/components/room/PeerEntryForm";
+import { CantonWalletConnect } from "@/components/CantonWalletConnect";
 
 function ShieldIcon() {
   return (
@@ -57,6 +58,19 @@ export default function Home() {
             </span>
           </div>
         </header>
+
+        <section className="mt-4 flex flex-col gap-3 rounded-2xl border border-wire/55 bg-vault/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[8px] uppercase tracking-[0.17em] text-signal/55">
+              Canton account
+            </p>
+            <p className="mt-1 text-[11px] text-paper/38">
+              Connect once before opening jobs, rooms, offers, or settlements.
+            </p>
+          </div>
+
+          <CantonWalletConnect />
+        </section>
 
         <section className="relative overflow-hidden py-16 sm:py-24">
           <div
