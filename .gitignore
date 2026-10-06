@@ -13,3 +13,13 @@ frontend/.next/
 .cache/
 .vercel
 .env*
+.allocation-cid
+.allocation-factory-request.json
+.allocation-factory-response.json
+.allocation-submit-response.json
+.allocation-submit.json
+.cc-holdings.json
+.cc-primary.json
+.settlement-context.json
+.settlement-submit.json
+.hackcanton-dar/

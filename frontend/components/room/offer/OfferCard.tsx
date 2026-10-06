@@ -1,64 +1,25 @@
 "use client";
-
-import {
-  useState,
-} from "react";
-
-import {
-  offerTemplateForDealType,
-} from "@/lib/canton-offer-templates";
-
-import type {
-  CantonRoomOffer,
-} from "@/lib/canton-room-runtime";
-
-interface OfferCardProps {
+import { useState } from "react";
+import { offerTemplateForDealType } from "@/lib/canton-offer-templates";
+import type { CantonRoomOffer } from "@/lib/canton-room-runtime";
+import { assetName, escrowState } from "@/lib/workspace";
+import { Icon } from "@/components/workspace/Icon";
+export interface OfferCardProps {
   offer: CantonRoomOffer;
   busy: boolean;
-
-  onAccept(
-    offer: CantonRoomOffer,
-  ): void | Promise<void>;
-
-  onReject(
-    offer: CantonRoomOffer,
-  ): void | Promise<void>;
-
+  onAccept(offer: CantonRoomOffer): void | Promise<void>;
+  onReject(offer: CantonRoomOffer): void | Promise<void>;
   onSubmitFulfillment(
     offer: CantonRoomOffer,
     proof: string,
   ): void | Promise<void>;
-
-  onRequestRevision(
-    offer: CantonRoomOffer,
-    note: string,
-  ): void | Promise<void>;
-
-  onSubmitRevision(
-    offer: CantonRoomOffer,
-    proof: string,
-  ): void | Promise<void>;
-
-  onApproveFulfillment(
-    offer: CantonRoomOffer,
-  ): void | Promise<void>;
-
-  onSettle(
-    offer: CantonRoomOffer,
-  ): void | Promise<void>;
+  onRequestRevision(offer: CantonRoomOffer, note: string): void | Promise<void>;
+  onSubmitRevision(offer: CantonRoomOffer, proof: string): void | Promise<void>;
+  onApproveFulfillment(offer: CantonRoomOffer): void | Promise<void>;
+  onSettle(offer: CantonRoomOffer): void | Promise<void>;
 }
-
-function assetLabel(
-  value:
-    string,
-): string {
-  return value === "Amulet"
-    ? "CC"
-    : value;
-}
-
 export function OfferCard({
-  offer,
+  offer: o,
   busy,
   onAccept,
   onReject,
@@ -68,286 +29,211 @@ export function OfferCard({
   onApproveFulfillment,
   onSettle,
 }: OfferCardProps) {
-  const [
-    fulfillment,
-    setFulfillment,
-  ] = useState("");
-
-  const [
-    revisionNote,
-    setRevisionNote,
-  ] = useState("");
-
-  const definition =
-    offerTemplateForDealType(
-      offer.dealType,
-    );
-
-  const lifecycle =
-    offer.lifecycle ??
-    (
-      offer.status === "accepted"
-        ? "accepted"
-        : "proposal"
-    );
-
-  const canSubmit =
-    offer.own &&
-    offer.status === "accepted" &&
-    lifecycle === "accepted";
-
-  const canReview =
-    !offer.own &&
-    offer.status === "accepted" &&
-    lifecycle === "submitted";
-
-  const canRevise =
-    offer.own &&
-    offer.status === "accepted" &&
-    lifecycle ===
-      "revision_requested";
-
-  const canSettle =
-    offer.own &&
-    offer.status === "accepted" &&
-    lifecycle === "approved" &&
-    Boolean(
-      offer.instrumentAdmin,
-    );
-
-  const statusLabel =
-    offer.status === "pending"
-      ? "Pending"
-      : offer.status === "rejected"
-        ? "Rejected"
-        : lifecycle === "submitted"
-          ? "Fulfillment submitted"
-          : lifecycle ===
-              "revision_requested"
-            ? "Revision requested"
-            : lifecycle === "approved"
-              ? "Approved"
-              : lifecycle === "settled"
-                ? "Settled"
-                : offer.instrumentAdmin
-                  ? "Escrow funded"
-                  : "Accepted";
-
+  const [proof, setProof] = useState(""),
+    [note, setNote] = useState(""),
+    [confirm, setConfirm] = useState(false);
+  const state = escrowState(o),
+    life = o.lifecycle ?? (o.status === "accepted" ? "accepted" : "proposal"),
+    expired = o.status === "pending" && Date.parse(o.expiresAt) <= Date.now();
+  const canSubmit = o.own && o.status === "accepted" && life === "accepted",
+    canReview = !o.own && o.status === "accepted" && life === "submitted",
+    canRevise =
+      o.own && o.status === "accepted" && life === "revision_requested",
+    canSettle =
+      o.own &&
+      o.status === "accepted" &&
+      life === "approved" &&
+      Boolean(o.instrumentAdmin);
   return (
-    <div
-      className={
-        offer.own
-          ? "ml-auto w-[92%] max-w-md"
-          : "mr-auto w-[92%] max-w-md"
-      }
-    >
-      <div className="rounded-2xl border border-amber-400/20 bg-vault/45 px-3.5 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[8px] uppercase tracking-[0.14em] text-amber-300/70">
-            {definition.label}
-            {" · "}
-            {offer.settlementRail}
-          </span>
-
-          <span className="text-[9px] text-signal/75">
-            {statusLabel}
-          </span>
-        </div>
-
-        <p className="mt-2 text-[13px] font-medium text-paper/75">
-          {offer.terms}
-        </p>
-
-        <p className="mt-1 text-[15px] text-paper/86">
-          {offer.amount}
-          {" "}
-          {assetLabel(
-            offer.instrumentId,
-          )}
-        </p>
-
-        {!offer.own &&
-          offer.status === "pending" && (
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-wire/55 pt-3">
+    <article className={"offer-card" + (o.own ? " own" : "")}>
+      <div className="offer-top">
+        <span className="text-link">
+          <Icon name="file" />
+          {offerTemplateForDealType(o.dealType).label}
+        </span>
+        <span className={"badge " + state.tone}>
+          {expired ? "Offer expired" : state.label}
+        </span>
+      </div>
+      <h3>{o.terms}</h3>
+      <div className="deal-amount">
+        {o.amount} <small>{assetName(o.instrumentId)}</small>
+      </div>
+      <p className="small muted">
+        {o.instrumentAdmin ? "Canton escrow / rekber" : "Canton agreement"}
+      </p>
+      {o.status === "accepted" && (
+        <>
+          <div className="escrow-track" aria-hidden="true">
+            {[0, 1, 2, 3, 4, 5].map((s) => (
+              <span key={s} className={s <= state.step ? "done" : ""} />
+            ))}
+          </div>
+          <p className="small muted">
+            {
+              [
+                "Offer received",
+                "Agreement accepted",
+                "Escrow funded",
+                "Delivery & review",
+                "Approved for settlement",
+                "Settlement complete",
+              ][state.step]
+            }
+          </p>
+        </>
+      )}
+      {!o.own && o.status === "pending" && !expired && (
+        <>
+          <div className="actions">
             <button
-              type="button"
+              className="ui-button danger"
               disabled={busy}
-              onClick={() =>
-                void onReject(
-                  offer,
-                )
-              }
-              className="h-9 rounded-lg border border-danger/30 text-[8px] uppercase tracking-[0.13em] text-danger disabled:opacity-30"
+              onClick={() => void onReject(o)}
             >
-              Reject
+              Decline
             </button>
-
             <button
-              type="button"
+              className="ui-button primary"
               disabled={busy}
-              onClick={() =>
-                void onAccept(
-                  offer,
-                )
-              }
-              className="h-9 rounded-lg border border-signal/35 bg-signal/[0.06] text-[8px] uppercase tracking-[0.13em] text-signal disabled:opacity-30"
+              onClick={() => setConfirm(true)}
             >
-              Accept
+              {o.instrumentAdmin ? "Accept & fund" : "Accept offer"}
             </button>
           </div>
-        )}
-
-        {canSubmit && (
-          <div className="mt-3 space-y-2 border-t border-wire/55 pt-3">
-            <textarea
-              rows={3}
-              value={fulfillment}
-              disabled={busy}
-              onChange={(event) =>
-                setFulfillment(
-                  event.target.value,
-                )
-              }
-              placeholder="Describe delivered work. Only the hash is committed on Canton."
-              className="w-full resize-none rounded-lg border border-wire/60 bg-black/20 px-3 py-2 text-[10px] text-paper/70 outline-none"
-            />
-
-            <button
-              type="button"
-              disabled={
-                busy ||
-                !fulfillment.trim()
-              }
-              onClick={() =>
-                void onSubmitFulfillment(
-                  offer,
-                  fulfillment,
-                )
-              }
-              className="h-9 w-full rounded-lg border border-signal/35 bg-signal/[0.06] text-[8px] uppercase tracking-[0.13em] text-signal disabled:opacity-30"
-            >
-              Submit Fulfillment
-            </button>
-          </div>
-        )}
-
-        {canReview && (
-          <div className="mt-3 space-y-2 border-t border-wire/55 pt-3">
-            <textarea
-              rows={2}
-              value={revisionNote}
-              disabled={busy}
-              onChange={(event) =>
-                setRevisionNote(
-                  event.target.value,
-                )
-              }
-              placeholder="Revision reason, if needed"
-              className="w-full resize-none rounded-lg border border-wire/60 bg-black/20 px-3 py-2 text-[10px] text-paper/70 outline-none"
-            />
-
-            <div className="grid grid-cols-2 gap-2">
+          {confirm && (
+            <div className="stack offer-foot">
+              <p>
+                {o.instrumentAdmin
+                  ? "Your wallet will be asked to accept this agreement and allocate " +
+                    o.amount +
+                    " " +
+                    assetName(o.instrumentId) +
+                    " to escrow. Payment releases after approval and settlement."
+                  : "Accept this agreement on Canton. This offer does not include funded escrow."}
+              </p>
               <button
-                type="button"
-                disabled={
-                  busy ||
-                  !revisionNote.trim()
-                }
-                onClick={() =>
-                  void onRequestRevision(
-                    offer,
-                    revisionNote,
-                  )
-                }
-                className="h-9 rounded-lg border border-amber-400/30 text-[8px] uppercase tracking-[0.12em] text-amber-300 disabled:opacity-30"
-              >
-                Request Revision
-              </button>
-
-              <button
-                type="button"
+                className="ui-button primary"
                 disabled={busy}
-                onClick={() =>
-                  void onApproveFulfillment(
-                    offer,
-                  )
-                }
-                className="h-9 rounded-lg border border-signal/35 bg-signal/[0.06] text-[8px] uppercase tracking-[0.12em] text-signal disabled:opacity-30"
+                onClick={() => void onAccept(o)}
               >
-                Approve
+                {busy ? "Waiting for wallet…" : "Confirm in wallet"}
+              </button>
+              <button
+                className="text-link"
+                disabled={busy}
+                onClick={() => setConfirm(false)}
+              >
+                Cancel
               </button>
             </div>
-          </div>
-        )}
-
-        {canRevise && (
-          <div className="mt-3 space-y-2 border-t border-wire/55 pt-3">
+          )}
+        </>
+      )}
+      {(canSubmit || canRevise) && (
+        <>
+          <label className="field">
+            {canRevise ? "Revised delivery" : "Deliver your work"}
             <textarea
               rows={3}
-              value={fulfillment}
               disabled={busy}
-              onChange={(event) =>
-                setFulfillment(
-                  event.target.value,
-                )
-              }
-              placeholder="Describe revised fulfillment"
-              className="w-full resize-none rounded-lg border border-wire/60 bg-black/20 px-3 py-2 text-[10px] text-paper/70 outline-none"
+              value={proof}
+              onChange={(e) => setProof(e.target.value)}
+              placeholder="Describe the delivery and include your work link."
             />
-
+          </label>
+          <div className="actions">
             <button
-              type="button"
-              disabled={
-                busy ||
-                !fulfillment.trim()
-              }
+              className="ui-button primary"
+              disabled={busy || !proof.trim()}
               onClick={() =>
-                void onSubmitRevision(
-                  offer,
-                  fulfillment,
-                )
+                void (canRevise
+                  ? onSubmitRevision(o, proof)
+                  : onSubmitFulfillment(o, proof))
               }
-              className="h-9 w-full rounded-lg border border-signal/35 bg-signal/[0.06] text-[8px] uppercase tracking-[0.13em] text-signal disabled:opacity-30"
             >
-              Submit Revision
+              {busy
+                ? "Submitting…"
+                : canRevise
+                  ? "Submit revision"
+                  : "Submit work"}
             </button>
           </div>
-        )}
-
-        {canSettle && (
+        </>
+      )}
+      {canReview && (
+        <>
+          <label className="field">
+            Revision notes <span className="muted small">(if needed)</span>
+            <textarea
+              rows={2}
+              disabled={busy}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="What needs to change?"
+            />
+          </label>
+          <div className="actions">
+            <button
+              className="ui-button"
+              disabled={busy || !note.trim()}
+              onClick={() => void onRequestRevision(o, note)}
+            >
+              Request revision
+            </button>
+            <button
+              className="ui-button primary"
+              disabled={busy}
+              onClick={() => void onApproveFulfillment(o)}
+            >
+              Approve work
+            </button>
+          </div>
+        </>
+      )}
+      {canSettle && (
+        <div className="actions">
           <button
-            type="button"
+            className="ui-button primary"
             disabled={busy}
-            onClick={() =>
-              void onSettle(
-                offer,
-              )
-            }
-            className="mt-3 h-9 w-full rounded-lg border border-signal/40 bg-signal/[0.09] text-[8px] uppercase tracking-[0.13em] text-signal disabled:opacity-30"
+            onClick={() => void onSettle(o)}
           >
-            Settle Escrow
+            <Icon name="shield" />
+            {busy ? "Settling…" : "Settle escrow"}
           </button>
-        )}
-
-        {lifecycle === "approved" &&
-          !offer.instrumentAdmin && (
-          <p className="mt-3 border-t border-signal/15 pt-3 text-[9px] text-signal/70">
-            Fulfillment approved.
-          </p>
-        )}
-
-        {lifecycle === "settled" && (
-          <p className="mt-3 border-t border-signal/20 pt-3 text-[9px] text-signal/75">
-            Settlement complete on Canton.
-          </p>
-        )}
-
-        {offer.status === "rejected" && (
-          <p className="mt-3 border-t border-danger/15 pt-3 text-[9px] text-danger/70">
-            Offer rejected.
-          </p>
-        )}
+        </div>
+      )}
+      <div className="offer-foot">
+        {o.status === "rejected"
+          ? "This offer was declined."
+          : life === "settled"
+            ? "Settlement completed on Canton."
+            : life === "approved"
+              ? o.instrumentAdmin
+                ? "Work approved. The payee can complete settlement."
+                : "Work approved. This agreement has no escrow to settle."
+              : o.status === "accepted" && o.instrumentAdmin && !state.funded
+                ? "Escrow funding has not been confirmed in this view. Open the deal record to check its current ledger state."
+                : o.status === "pending"
+                  ? "Review the terms before accepting."
+                  : "The next action depends on the current agreement state."}
       </div>
-    </div>
+      <details className="advanced">
+        <summary>Agreement details</summary>
+        <div className="advanced-content small muted break-word">
+          <p>Deal: {o.dealId}</p>
+          <p>Network: Canton · Asset: {assetName(o.instrumentId)}</p>
+          <p>Offer expiry: {new Date(o.expiresAt).toLocaleString()}</p>
+          <p>
+            Contract:{" "}
+            {o.settlementReceiptContractId ||
+              o.approvalContractId ||
+              o.escrowContractId ||
+              o.agreementContractId ||
+              o.contractId}
+          </p>
+        </div>
+      </details>
+    </article>
   );
 }

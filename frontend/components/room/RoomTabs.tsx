@@ -1,54 +1,35 @@
 "use client";
-
-export type RoomTab =
-  | "message"
-  | "group"
-  | "activity"
-  | "loyalty";
-
-interface RoomTabsProps {
-  value: RoomTab;
-  onChange(
-    value: RoomTab,
-  ): void;
-}
-
+import { Icon } from "@/components/workspace/Icon";
+export type RoomTab = "message" | "escrow" | "activity";
 export function RoomTabs({
   value,
   onChange,
-}: RoomTabsProps) {
-  const items = [
-    ["message", "Message"],
-    ["group", "Group"],
-    ["activity", "Activity"],
-    ["loyalty", "Loyalty"],
-  ] as const;
-
+}: {
+  value: RoomTab;
+  onChange(v: RoomTab): void;
+}) {
   return (
-    <nav
-      aria-label="Deal room navigation"
-      className="mb-3 rounded-2xl bg-vault/35 p-1 ring-1 ring-wire/65"
-    >
-      <div className="flex snap-x gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-4">
-        {items.map(
-          ([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() =>
-                onChange(key)
-              }
-              className={
-                value === key
-                  ? "min-w-[108px] flex-1 snap-start rounded-xl bg-signal/[0.09] px-3 py-2.5 text-[11px] font-medium text-signal ring-1 ring-signal/15 sm:min-w-0"
-                  : "min-w-[108px] flex-1 snap-start rounded-xl px-3 py-2.5 text-[11px] font-medium text-paper/38 transition hover:bg-white/[0.02] hover:text-paper/70 sm:min-w-0"
-              }
-            >
-              {label}
-            </button>
-          ),
-        )}
-      </div>
-    </nav>
+    <div className="room-tabs" role="tablist" aria-label="Private room">
+      {(
+        [
+          { id: "message", label: "Conversation", icon: "chat" },
+          { id: "escrow", label: "Escrow / rekber", icon: "shield" },
+          { id: "activity", label: "Activity", icon: "clock" },
+        ] as const
+      ).map((t) => (
+        <button
+          type="button"
+          key={t.id}
+          id={"tab-" + t.id}
+          role="tab"
+          aria-selected={value === t.id}
+          aria-controls="room-tab-panel"
+          onClick={() => onChange(t.id)}
+        >
+          <Icon name={t.icon} />
+          {t.label}
+        </button>
+      ))}
+    </div>
   );
 }
