@@ -3,7 +3,10 @@ import { cantonNetwork } from "./workspace";
 import { installationFor } from "./canton-invite";
 import initOpenMls, * as openMlsModule from "./openmls/vinss_mls.js";
 
-import type { CantonLedgerClient } from "../../src/canton/ledger-client.js";
+import type {
+  CantonCreatedContract,
+  CantonLedgerClient,
+} from "../../src/canton/ledger-client.js";
 
 import { CantonDappLedgerClient } from "./canton-dapp-ledger-client";
 
@@ -577,7 +580,9 @@ export class CantonRoomRuntime {
       }
 
       if (offers.length > 0) {
-        input.onOffers?.(offers);
+        input.onOffers?.(
+          await hydrateOffers(offers, ledger, directory.activeParty()),
+        );
       }
 
       if (actions.length > 0) {
@@ -593,6 +598,14 @@ export class CantonRoomRuntime {
       async onLedgerOffset() {
         if (input.creator) await runtime.serialize(() => runtime.prepare());
         else await runtime.refreshStatus();
+
+        // Re-read encrypted history after a ledger update so a reload or the
+        // other participant's browser reflects the Canton contracts that are
+        // actually active, including funding and settlement.
+        await consume(
+          input.conversationId,
+          await history.list(input.conversationId),
+        );
       },
 
       onError: input.onError,
@@ -1272,6 +1285,120 @@ function toRoomMessage(
 
     own: message.senderInstallationId === localInstallationId,
   };
+}
+
+async function hydrateOffers(
+  offers: readonly CantonRoomOffer[],
+  ledger: CantonLedgerClient,
+  activeParty: string,
+): Promise<CantonRoomOffer[]> {
+  const contracts = await ledger.queryActiveContracts(activeParty);
+
+  return offers.map((offer) => hydrateOffer(offer, contracts));
+}
+
+function hydrateOffer(
+  offer: CantonRoomOffer,
+  contracts: readonly CantonCreatedContract[],
+): CantonRoomOffer {
+  if (offer.status === "rejected") {
+    return offer;
+  }
+
+  const dealContracts = contracts.filter(
+    (contract) =>
+      isCantonDealContract(contract, "DealAgreement", offer.dealId) ||
+      isCantonDealContract(contract, "DealEscrow", offer.dealId) ||
+      isCantonDealContract(contract, "DealFulfillment", offer.dealId) ||
+      isCantonDealContract(contract, "DealRevisionRequest", offer.dealId) ||
+      isCantonDealContract(contract, "FulfillmentApproval", offer.dealId) ||
+      isCantonDealContract(contract, "SettlementReceipt", offer.dealId),
+  );
+
+  const agreement = latestDealContract(
+    dealContracts,
+    "DealAgreement",
+  );
+  const escrow = latestDealContract(dealContracts, "DealEscrow");
+  const fulfillment = latestDealContract(dealContracts, "DealFulfillment");
+  const revision = latestDealContract(dealContracts, "DealRevisionRequest");
+  const approval = latestDealContract(dealContracts, "FulfillmentApproval");
+  const receipt = latestDealContract(dealContracts, "SettlementReceipt");
+  const allocationContractId =
+    readOptionalDealField(
+      escrow?.createArgument ?? {},
+      "lockedAllocationCid",
+    ) ??
+    readOptionalDealField(
+      approval?.createArgument ?? {},
+      "lockedAllocationCid",
+    ) ??
+    readOptionalDealField(
+      fulfillment?.createArgument ?? {},
+      "lockedAllocationCid",
+    );
+
+  const lifecycle = receipt
+    ? "settled"
+    : approval
+      ? "approved"
+      : revision
+        ? "revision_requested"
+        : fulfillment
+          ? "submitted"
+          : escrow || agreement
+            ? "accepted"
+            : offer.lifecycle;
+
+  return {
+    ...offer,
+    ...(lifecycle ? { lifecycle } : {}),
+    ...(lifecycle && lifecycle !== "proposal" ? { status: "accepted" } : {}),
+    ...(agreement
+      ? { agreementContractId: agreement.contractId }
+      : {}),
+    ...(escrow
+      ? { escrowContractId: escrow.contractId }
+      : {}),
+    ...(allocationContractId ? { allocationContractId } : {}),
+    ...(fulfillment
+      ? { fulfillmentContractId: fulfillment.contractId }
+      : {}),
+    ...(revision
+      ? { revisionRequestContractId: revision.contractId }
+      : {}),
+    ...(approval
+      ? { approvalContractId: approval.contractId }
+      : {}),
+    ...(receipt
+      ? { settlementReceiptContractId: receipt.contractId }
+      : {}),
+  };
+}
+
+function latestDealContract(
+  contracts: readonly CantonCreatedContract[],
+  templateName: CantonDealTemplateName,
+): CantonCreatedContract | undefined {
+  return contracts
+    .filter((contract) =>
+      isCantonDealTemplate(contract.templateId, templateName),
+    )
+    .sort((left, right) =>
+      left.offset < right.offset ? -1 : left.offset > right.offset ? 1 : 0,
+    )
+    .at(-1);
+}
+
+function isCantonDealContract(
+  contract: CantonCreatedContract,
+  templateName: CantonDealTemplateName,
+  dealId: string,
+): boolean {
+  return (
+    isCantonDealTemplate(contract.templateId, templateName) &&
+    readOptionalDealField(contract.createArgument, "dealId") === dealId
+  );
 }
 
 async function toRoomOffer(
