@@ -2,9 +2,20 @@
 
 **One product story:** a private conversation becomes an agreement, approved delivery and a Canton payment receipt.
 
-[App](https://vinss-canton.vercel.app) · [Repository](https://github.com/ntfound-dev/Vinss-canton) · [Business brief](BUSINESS_BRIEF.md)
+[App](https://vinss-canton.vercel.app) · [Repository](https://github.com/ntfound-dev/Vinss-canton) · [Document index](README.md) · [Pitch deck](vinss-deck.pdf) · [Business brief](BUSINESS_BRIEF.md)
 
 This guide maps the implemented workflow to evidence. It does not claim that every step has been re-verified live in the current release.
+
+## Season 3 materials
+
+| Judging criterion | Material |
+| --- | --- |
+| Value / Problem | [Value statement](VALUE_STATEMENT.md), [PDF](vinss-value-statement.pdf) |
+| ICP / Audience | [Audience](ICP_AUDIENCE.md), [PDF](vinss-icp-audience.pdf) |
+| Metrics / Validation | [Validation evidence](METRICS_VALIDATION.md), [PDF](vinss-metrics-validation.pdf) |
+| GTM | [GTM](GTM.md), [PDF](vinss-gtm.pdf), [Pilot plan](PILOT_PLAN.md) |
+| MVP | [Technical overview](TECHNICAL_OVERVIEW.md), [PDF](vinss-technical-overview.pdf), [Architecture](ARCHITECTURE.md) |
+| Pitch | [Deck PDF](vinss-deck.pdf), [Editable deck](vinss-deck.pptx), [Form text](SUBMISSION_FORM.md) |
 
 ## What to show
 

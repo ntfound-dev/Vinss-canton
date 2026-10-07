@@ -4,7 +4,7 @@
 
 VINSS brings a client and a freelancer into one private room to discuss work, agree on an offer, fund escrow, review delivery and settle payment on Canton. Join through an invitation link or QR, or start a conversation from a published job.
 
-[Open the app](https://vinss-canton.vercel.app) · [Demo and evidence](docs/SUBMISSION.md) · [Business brief](docs/BUSINESS_BRIEF.md) · [Architecture](docs/ARCHITECTURE.md)
+[Open the app](https://vinss-canton.vercel.app) · [Pitch deck](docs/vinss-deck.pdf) · [Submission materials](docs/README.md) · [Demo and evidence](docs/SUBMISSION.md)
 
 ## The problem
 
@@ -64,14 +64,17 @@ The latest automated suite passed **69 tests across 24 files**. Its messaging sc
 
 ## Documentation map
 
-| Read this | To understand |
+The [document index](docs/README.md) maps materials to all six Season 3 judging criteria. Start with the [pitch deck](docs/vinss-deck.pdf) or use the [submission text](docs/SUBMISSION_FORM.md) for the form.
+
+| Product and business | Technical evidence |
 | --- | --- |
-| [Business brief](docs/BUSINESS_BRIEF.md) | User problem, intended audience, product value and proposed business model |
-| [Demo and evidence](docs/SUBMISSION.md) | A recording walkthrough and the code/evidence behind each claim |
-| [Pilot plan](docs/PILOT_PLAN.md) | Next validation steps, dependencies and success criteria |
-| [Architecture](docs/ARCHITECTURE.md) | Wallet binding, MLS, storage, ledger ordering and contract authority |
-| [Messaging verification](docs/MESSAGING_E2E.md) | Automated test coverage and the live browser/wallet checks still needed |
-| [DevNet escrow evidence](docs/CANTON_DEVNET_E2E.md) | The historical settlement run, transaction IDs and reproduction details |
+| [Value / problem](docs/VALUE_STATEMENT.md) | [Technical overview](docs/TECHNICAL_OVERVIEW.md) |
+| [Target audience](docs/ICP_AUDIENCE.md) | [Architecture](docs/ARCHITECTURE.md) |
+| [Business brief](docs/BUSINESS_BRIEF.md) | [Messaging verification](docs/MESSAGING_E2E.md) |
+| [GTM](docs/GTM.md) and [pilot plan](docs/PILOT_PLAN.md) | [DevNet settlement evidence](docs/CANTON_DEVNET_E2E.md) |
+| [Pitch outline](docs/PITCH.md) | [Demo and code map](docs/SUBMISSION.md) |
+
+The index also links one-page PDFs of product value, audience, validation, GTM and the technical summary. Business hypotheses and planned features remain distinct from implemented behavior and recorded test results.
 
 ## Repository layout
 
