@@ -1,36 +1,54 @@
 # VINSS - Value / Problem Statement
 
-**A private conversation should lead to a clear agreement.**
+## Private chat with a payment workflow
 
-VINSS gives a client and freelancer one room to discuss work, agree on an offer, review delivery and settle payment on Canton.
+VINSS helps two people agree on digital work, fund escrow and settle payment after delivery approval in the same private room.
 
-## The problem
+## The problem: the agreement gets separated from the payment
 
-**Scope and payment drift apart..** The work is discussed in a messenger, the job lives on a marketplace, and payment has a separate status. Both people must reconcile those records when the scope changes.
+A client hires a freelancer through a community or personal contact. They negotiate in chat, send a payment elsewhere and review the work in another thread. When the scope changes, neither person has one place that shows the accepted terms, funding status and delivery decision.
 
-**Each side needs clarity..** The client needs to review delivery against the agreed terms. The freelancer needs to see whether payment is funded and what remains before settlement.
+The freelancer needs to know that the agreed payment is funded before delivering. The client needs to review the work against the accepted offer before approving settlement. A payment receipt alone does not explain what work both people agreed to.
 
-## The product
+## The product: a private room for the whole deal
 
-**Join with a link or QR..** Each person connects a Canton wallet. VINSS resolves the signed peer installation and opens an MLS conversation without manual Party or Installation IDs.
+One person creates an invite link or QR. The other connects a Canton wallet and joins. They discuss the work privately, create an offer and record acceptance. The client funds escrow, the freelancer submits delivery, and the client approves or requests a revision. After approval, the freelancer settles the payment and receives a ledger receipt.
 
-**Make an offer in the conversation..** Detailed terms travel inside encrypted messages. Canton records the amount, asset, Parties, terms hash and agreement lifecycle.
+| For the client | For the freelancer |
+| --- | --- |
+| Read the agreed scope beside the delivery and approve the work explicitly. | See whether escrow is funded and what action is needed to complete payment. |
+| Keep private work discussions in the room. | Keep the accepted offer and settlement record connected to the conversation. |
 
-**Connect delivery to settlement..** The payer funds a Token Standard Allocation. The freelancer submits work, the client approves or requests revision, and the freelancer settles after approval.
+## Initial use case
 
-## Why Canton, why now
+A client and freelancer completing one defined digital task. The product also supports encrypted group chat. The current escrow flow is between two people.
 
-**A shared workflow with selective access..** Canton supplies Party-based contract visibility and Daml authorization. OpenMLS encrypts conversation content. Token Standard Allocations connect the agreement to the payment rail.
+## How a design job becomes a settled deal
 
-**Start with a bounded use case..** The current MVP brings these pieces together for direct client work. A small Canton pilot can now test whether people can complete and reuse the workflow.
+Illustrative example: a client commissions one landing-page design. This example explains the workflow; it is not a reported customer transaction.
 
-## Current boundaries
+| Step | What the people do | What VINSS records |
+| --- | --- | --- |
+| 1. Invite | The designer shares a private link or QR with the client. | A wallet-bound private room. |
+| 2. Agree | They define the deliverable, price and review terms. The client accepts. | Private terms in encrypted chat and an accepted agreement on Canton. |
+| 3. Fund | The client authorizes an allocation for the agreed payment. | A validated escrow reference. Acceptance alone does not prove funding. |
+| 4. Review | The designer submits work. The client approves or requests revision. | Delivery and review hashes with the authorized decision. |
+| 5. Settle | After approval, the designer executes settlement. | A receipt referencing the receiver token holdings. |
 
-Current scope: Canton, private deals and encrypted groups. Groups have no escrow UI. Dispute/refund handling and cross-device recovery remain unimplemented.
+## Why Canton is part of the product
+
+Canton gives the business record named participants, controlled visibility and actions enforced by Daml contracts. OpenMLS encrypts the conversation before messages reach the ledger. Token Standard Allocations connect the accepted agreement to the payment. Together, these support private negotiation with a shared record of who approved each deal action.
+
+## The value to validate next
+
+The pilot will test whether clients and freelancers can complete this workflow with less manual reconciliation and choose to use it for a second task. The existing evidence establishes software progress. Customer demand and repeat use still need measurement.
+
+## Payment boundary
+
+VINSS references the token allocation rather than holding funds in an application wallet. The current module has no dispute, arbitration or refund choice. Broader real-payment use requires that product decision.
 
 ## Sources
 
-- [BUSINESS_BRIEF.md](BUSINESS_BRIEF.md)
-- [ARCHITECTURE.md](ARCHITECTURE.md)
-- [daml/Vinss/Deal.daml](../daml/Vinss/Deal.daml)
-- [frontend/lib/canton-room-runtime.ts](../frontend/lib/canton-room-runtime.ts)
+- [Product and business](BUSINESS_BRIEF.md)
+- [Escrow roles and contract lifecycle](ESCROW.md)
+- [Privacy and storage boundaries](ARCHITECTURE.md)

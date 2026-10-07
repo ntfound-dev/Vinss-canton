@@ -18,6 +18,8 @@ Recruit a proposed starting cohort of 3–5 client–freelancer pairs with bound
 
 **Measure:** invite-to-room success, completed workflows versus attempted workflows, wallet/network failure counts, time to agree and settle, repeat use and interview feedback. These are proposed metrics, not results already achieved.
 
+**Proposed scorecard:** [Metrics and validation](METRICS_VALIDATION.md) defines completion, repeat-use and VIP interview targets. Report raw counts for this small cohort.
+
 **Decision:** fix the largest repeated failure before expanding the cohort. The current contract has no dispute/refund choice, so this gap needs an explicit product and contract decision before broader real-payment use.
 
 ## 3. Expand the validated Canton experience

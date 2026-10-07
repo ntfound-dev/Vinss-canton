@@ -75,7 +75,7 @@ The [document index](docs/README.md) maps materials to all six Season 3 judging 
 | [Pitch outline](docs/PITCH.md) | [Demo and code map](docs/SUBMISSION.md) |
 | | [Deal & Escrow (Rekber)](docs/ESCROW.md) |
 
-The index also links one-page PDFs of product value, audience, validation, GTM and the technical summary. Business hypotheses and planned features remain distinct from implemented behavior and recorded test results.
+The index also links PDF briefs of product value, audience, validation, GTM and the technical summary. Business hypotheses and planned features remain distinct from implemented behavior and recorded test results.
 
 ## Repository layout
 

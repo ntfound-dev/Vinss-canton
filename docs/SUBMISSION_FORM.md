@@ -46,7 +46,7 @@ Code and evidence map: [SUBMISSION.md](SUBMISSION.md)
 
 ## Pitch Materials
 
-[Pitch deck PDF](vinss-deck.pdf) and [editable deck](vinss-deck.pptx) cover the product, user problem, workflow, Canton privacy/authority, technical evidence, initial audience, business/distribution and pilot plan. One-page PDFs provide separate value, ICP, validation, GTM and technical summaries. [Document index](README.md).
+[Pitch deck PDF](vinss-deck.pdf) and [editable deck](vinss-deck.pptx) cover the product, user problem, workflow, Canton privacy/authority, technical evidence, initial audience, business/distribution and pilot plan. PDF briefs provide separate value, ICP, validation, GTM and technical summaries. [Document index](README.md).
 
 ## Submission fields to finish
 

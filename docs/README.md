@@ -17,10 +17,10 @@ For payment, read [Deal & Escrow (Rekber)](ESCROW.md): roles, funding checks, de
 | Metrics / Validation | [Evidence summary](vinss-metrics-validation.pdf) | [Validation](METRICS_VALIDATION.md), [Messaging checks](MESSAGING_E2E.md), [DevNet settlement](CANTON_DEVNET_E2E.md) |
 | GTM Materials | [Go-to-market](vinss-gtm.pdf) | [Distribution and business model](GTM.md), [Pilot plan](PILOT_PLAN.md) |
 | MVP Materials | [Technical summary](vinss-technical-overview.pdf) | [Technical overview](TECHNICAL_OVERVIEW.md), [Architecture](ARCHITECTURE.md), [Demo guide](SUBMISSION.md) |
-| Pitch Materials | [Eight-slide pitch](vinss-deck.pdf) | [Editable deck](vinss-deck.pptx), [Pitch outline](PITCH.md), [Form text](SUBMISSION_FORM.md) |
+| Pitch Materials | [Ten-slide pitch](vinss-deck.pdf) | [Editable deck](vinss-deck.pptx), [Pitch outline](PITCH.md), [Form text](SUBMISSION_FORM.md) |
 
 ## How the records relate
 
-Markdown is the source text for the one-page PDF summaries. The PPTX is the editable presentation. Architecture describes the current implementation and its trust boundaries. The DevNet runbook retains the dated settlement transaction and contract IDs.
+Markdown is the source text for the PDF briefs. The PPTX is the editable presentation. Architecture describes the current implementation and its trust boundaries. The DevNet runbook retains the dated settlement transaction and contract IDs.
 
 The 69-test automated result uses real OpenMLS WASM over simulated ledger/wallet access. The earlier 1 CC DevNet settlement is separate live evidence. Proposed audiences, acquisition channels and pilot measures are business hypotheses. Points, VIP billing and multichain remain planned.

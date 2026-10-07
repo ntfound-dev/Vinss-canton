@@ -1,41 +1,58 @@
-# VINSS - Icp / Audience
+# VINSS - ICP / Audience
 
-**Direct client work is the first use case.**
+## People who already have a client
 
-The proposed first users are freelancers and clients agreeing on one bounded digital deliverable. This audience is a pilot hypothesis, not measured customer traction.
+The first audience is independent freelancers and their direct clients. VINSS can provide value to a pair before the marketplace has a large supply of jobs.
 
-## Primary audience: independent freelancers
+## Primary user: the independent freelancer
 
-**Who.** Developers, designers and writers who already work directly with a client and can define a deliverable, price and review step.
+A developer, designer or writer agrees on a defined piece of work with someone they already know through a referral or community. The trigger is a new paid task: they need to state the scope, confirm funding and manage delivery without losing the agreement inside a long chat.
 
-**Pain.** The scope sits in chat while funding and payment confirmation sit elsewhere. The freelancer must ask which version was accepted and whether the deal is funded.
+The freelancer is a likely initiator because they can create the room and invite the client. The benefit to test is a clearer path from an accepted offer to a completed payment.
 
-**Value to test.** A room that keeps the agreed offer and delivery decisions alongside the funding and settlement record.
+## Counterparty: the client buying the work
 
-## The other side: clients and small teams
+A founder, creator or small team hires someone for a specific deliverable. The client needs to understand what the offer includes, see the submitted work and know what approval authorizes. A successful experience must make the client comfortable joining a room even when they have never used VINSS before.
 
-**Who.** A client buying a specific piece of work, or a small team coordinating repeat engagements.
+| User | Reason to use VINSS | Decision to observe |
+| --- | --- | --- |
+| Freelancer | Keep the scope, funding and delivery decision together. | Will they invite a client and use it for another task? |
+| Client | Review work against the accepted offer before settlement. | Can they join, fund and review without technical help? |
+| Repeat user / small team | Reuse common offer terms and retain useful deal records. | Which proposed VIP capability is worth paying for? |
 
-**Pain.** The client must connect the delivered work to the accepted scope and understand what approving it will authorize.
+## Audience status
 
-**Value to test.** Review the private terms and delivery in the room, request revision where needed, and inspect the escrow lifecycle.
+These are target-user hypotheses. The repository does not record completed customer interviews, paying users or retention results.
 
-## Who could pay
+## A pilot with clear recruitment criteria
 
-**Optional VIP.** Repeat freelancers and small teams are the proposed subscription audience. The existing preview names reusable offer templates, more listings and deal exports. Pricing, entitlements and billing are pending.
+Recruit 3-5 client-freelancer pairs for a controlled exercise with test tokens. Observe both people, because one successful wallet connection does not complete a deal.
 
-**Pilot fit.** Start with pairs able to use compatible Canton wallets and a supported token registry. Groups support team discussion while individual escrow agreements remain between two Parties.
+| Suitable for the first cohort | Outside the first cohort |
+| --- | --- |
+| One agreed digital deliverable and an identifiable reviewer. | Open-ended work with unclear approval conditions. |
+| Both participants can use compatible Canton wallets. | Users who require another chain or fiat payment. |
+| Both can attend onboarding and describe failures. | High-value work that already needs arbitration or staged refunds. |
+| A willingness to try a second small task after the first. | Teams requiring multi-party escrow or organization-wide controls. |
 
-## Validation questions
+## Questions before the first transaction
 
-**Evidence to collect.** Can both people join without technical assistance? Does the offer match their understanding of the work? Can they explain the funding and approval steps? Do they reuse the room for another engagement?
+Ask where they negotiate, how they confirm funding and what happens when the scope changes. Collect a recent example. Identify who proposes terms, pays and approves delivery.
 
-## Current boundaries
+## What to observe during and after the task
 
-Pilot proposal: 3-5 client-freelancer pairs, initially with test tokens. No completed customer interviews, paying-user counts or retention figures are recorded yet.
+Record whether the invite works without manual peer IDs, whether both people describe the accepted terms the same way, and whether they distinguish funded escrow from an accepted offer. After settlement, ask what was confusing, what felt useful and whether they would bring their next counterparty.
+
+## Who might pay for VIP
+
+Repeat freelancers and small teams are the proposed subscription customers. Test reusable offer templates, deal exports and additional listings as separate benefits. Ask which recurring task each benefit saves before deciding pricing or implementing billing.
+
+## Recruitment channels to test
+
+Direct outreach through freelancer communities and Canton builder contacts. These are proposed channels; no distribution partnership is claimed.
 
 ## Sources
 
-- [BUSINESS_BRIEF.md](BUSINESS_BRIEF.md)
-- [PILOT_PLAN.md](PILOT_PLAN.md)
-- [frontend/app/rewards/page.tsx](../frontend/app/rewards/page.tsx)
+- [Pilot sequence](PILOT_PLAN.md)
+- [Business positioning](BUSINESS_BRIEF.md)
+- [Current membership preview](../frontend/app/rewards/page.tsx)

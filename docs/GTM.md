@@ -1,38 +1,57 @@
-# VINSS - Go-To-Market
+# VINSS - Go-to-market / Business model
 
-**Win the first complete deal, then earn repeat use.**
+## Acquire a pair through one private invite
 
-Position VINSS as a private deal workspace on Canton. Begin with direct invitations between a client and freelancer, where a useful workflow does not depend on a large marketplace.
+VINSS can begin with direct client work. A freelancer brings an existing client into a useful workflow without waiting for marketplace liquidity.
 
-## 1. Prove the direct-invite experience
+## Positioning
 
-**Audience and acquisition.** Invite a proposed cohort of 3-5 client-freelancer pairs through freelance communities and Canton builder/community contacts. These are proposed channels, not confirmed partnerships.
+A private deal workspace for clients and freelancers on Canton. The message is concrete: discuss the work, agree on the offer, review delivery and settle payment in one room. Encrypted chat is the conversation layer. Escrow connects that conversation to a payment decision.
 
-**Pilot offer.** A controlled test-token exercise for one clearly scoped deliverable. Observe wallet onboarding, scope agreement, funding, approval and settlement.
+| Stage | Action | Evidence to collect |
+| --- | --- | --- |
+| Recruit | Invite 3-5 pairs through freelancer communities and Canton builder contacts. | Source of each pair and the task they want to complete. |
+| Activate | Assist with the first controlled test-token deal and observe both wallets. | Invite success, funding failures and steps requiring help. |
+| Retain | Ask each successful pair to complete a second small task. | Repeat starts, completed payments and reasons for returning. |
+| Refer | Ask returning users to invite their next counterparty. | New pairs arriving through a completed engagement. |
 
-**Decision.** Resolve the largest repeated failure before expanding the cohort. Collect participant feedback and consent before publishing a case study.
+## The first case study
 
-## 2. Grow through completed engagements
+With participant consent, document the original workflow, the task they completed in VINSS, where they needed help and whether they returned. Include the actual deal outcome. This gives the next prospect a concrete reason to try the product.
 
-**Repeat use.** Ask successful pairs to try a second task and invite the next counterparty. Measure repeat completed deals rather than treating wallet connections as adoption.
+## Proposed sequence
 
-**Marketplace.** Add authenticated self-service listing publication after the private workflow works reliably. The current marketplace reads a committed dataset, which has no live listings in this revision.
+Week 1: current-release wallet verification and recruitment. Week 2: first observed deals. Week 3: repeat tasks and interviews. Week 4: fix recurring blockers and decide the next cohort. This is a pilot proposal, not a delivery commitment.
 
-## 3. Validate optional membership
+## Optional VIP for recurring client work
 
-**Who pays.** Test willingness to pay with people handling repeat projects. VIP could provide reusable offer templates, more listings and activity exports, as shown in the existing preview.
+The proposed business model is a subscription for people managing repeated projects. Core private chat and escrow remain the product foundation.
 
-**Commercial boundary.** Subscription pricing, billing and entitlements are not implemented. No transaction-fee schedule or network-reward income is assumed in this plan.
+| Proposed paid benefit | Recurring problem it could solve | Validation before billing |
+| --- | --- | --- |
+| Reusable offer templates | Rewriting the same scope and delivery conditions. | Watch repeat users create their second offer. |
+| Deal activity exports | Preparing client records and reviewing past engagements. | Ask users to show the export they actually need. |
+| More marketplace listings | Managing several available services or projects. | Validate listing demand once publishing exists. |
 
-**Points.** Define an activity reward purpose and earning rules before issuing Points. Rewards and any future token model remain product decisions.
+## Commercial decisions still to make
 
-## Current boundaries
+Validate the paid benefit before setting a price and implementing billing. Track paid members, repeat deals and support time. Subscription revenue would equal paid memberships multiplied by price; no revenue forecast is supported yet.
 
-Expansion gates: live wallet reliability, useful repeat workflows and an explicit dispute/refund design before broader real-payment use. Multichain follows Canton validation.
+## Costs and the expansion decision
+
+Measure hosting, ledger transaction costs, support effort and the cost of recruiting an activated pair. Network charges and a future VINSS subscription are separate costs. Broader payment use also needs a dispute/refund design and reliability work. Expand the cohort when users complete and repeat the flow with a manageable support burden.
+
+## Marketplace, Points and multichain
+
+The current marketplace reads published listings from a committed dataset; it does not yet provide self-service publishing. Add that capability after direct invites work reliably. Points are a planned activity-reward feature with rules still to define. Multichain follows the Canton workflow and requires separate wallet and settlement integrations.
+
+## Current commercial status
+
+VIP pricing, billing and entitlements are pending. Points issuance is not active. The plan assumes no confirmed partner, transaction-fee revenue or network-reward income.
 
 ## Sources
 
-- [BUSINESS_BRIEF.md](BUSINESS_BRIEF.md)
-- [PILOT_PLAN.md](PILOT_PLAN.md)
-- [frontend/data/jobs.json](../frontend/data/jobs.json)
-- [frontend/app/rewards/page.tsx](../frontend/app/rewards/page.tsx)
+- [Business brief](BUSINESS_BRIEF.md)
+- [Pilot dependencies](PILOT_PLAN.md)
+- [VIP and Points preview](../frontend/app/rewards/page.tsx)
+- [Marketplace dataset](../frontend/data/jobs.json)
