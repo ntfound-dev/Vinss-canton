@@ -1,169 +1,71 @@
-# VINSS - pitch outline
+# VINSS — pitch notes
 
-Ten slides covering the product, payment mechanism, evidence and business plan.
+[Open the pitch deck](vinss-deck.pdf). This is a 13-slide PDF, including one evidence appendix. It is the only PDF required for this submission.
 
-## 1. VINSS
+## Slide 1. VINSS — a private deal room
 
-Private chat.
-Agreed work.
-Escrow settlement.
+VINSS is a private deal room. The product links an agreement to fulfillment and settlement rather than treating payment as a disconnected transfer.
 
-A private deal workspace for clients and freelancers on Canton.
+## Slide 2. The agreement is in chat. The payment is somewhere else.
 
-HackCanton League Season 3
+Consider a buyer arranging a small design task through direct messages. Paying first exposes the buyer; delivering first exposes the seller. The root problem is a disconnected agreement and completion process. This is an illustrative scenario, not an interview quotation.
 
-Sources: [README.md](../README.md), [docs/BUSINESS_BRIEF.md](BUSINESS_BRIEF.md)
+## Slide 3. Start with a small digital deal between two wallet users.
 
-## 2. The gap between chat and payment
+Recruit independent buyers and sellers arranging clearly scoped digital services with a new counterparty. A code or design deliverable has an observable output and a short completion cycle. VINSS is broader than a freelance marketplace; this is the first segment to validate.
 
-A direct client deal often loses its shared context.
+## Slide 4. Bring the counterparty. Keep the deal in one room.
 
-**The freelancer needs to know**
+A private invitation admits the wallet-bound participant into the encrypted room. An offer establishes the agreement; allocation funding, delivery review and settlement then refer to that deal. Groups support conversation; the current escrow path is two-party.
 
-Which scope did the client accept?
-Is the payment funded?
-What remains before settlement?
+## Slide 5. Private context. A shared, authorized outcome.
 
-**The client needs to know**
+OpenMLS encrypts message content in the browser. Canton controls contract visibility and which Party may act. Daml couples the VINSS settlement action to allocation transfer and receipt creation. Available wallet and token-standard infrastructure makes this integration testable now; it is not a claim that escrow was previously impossible.
 
-What did the offer include?
-Does the delivery match?
-What does approval authorize?
+## Slide 6. A private workflow for deals people already arrange directly.
 
-Initial use case: one client and one freelancer completing a defined digital task.
+The initial comparison is against the workflow people use, not a claim that no competitor has escrow. Existing marketplaces can combine many capabilities, but users join their marketplace rules and relationship. VINSS tests whether a portable private room is a useful alternative. A database could implement coordination, with the operator as record authority.
 
-Sources: [docs/VALUE_STATEMENT.md](VALUE_STATEMENT.md)
+## Slide 7. Charge for escrow. Keep core deal actions free.
 
-## 3. One room for the deal
+Proposed regular escrow pricing is 0.5% with a USD 0.10 minimum. The payer would pay. Optional individual VIP is USD 3 per month for 2x qualifying points and 20% off the escrow rate: 0.4%, same minimum. No billing is implemented. Network costs are separate; points have no guaranteed token value. Pricing requires cost and willingness-to-pay validation.
 
-An invite link or QR brings both people into the same workflow.
+## Slide 8. A working foundation. Customer validation comes next.
 
-01. **Discuss and agree** Private messages lead to an accepted offer.
+One historical real Canton DevNet settlement transferred 1 CC on 6 October 2026. Separately, developer-supplied logs on 7 October report 69 tests in 24 files passing and ten local integration messages across direct and three-member group scenarios. The local integration uses real OpenMLS WASM and simulated wallet/ledger. No customer traction or new live browser run is claimed.
 
-02. **Fund escrow** The client authorizes the payment allocation.
+## Slide 9. Recruit pairs, then test whether the second deal happens.
 
-03. **Deliver and review** The freelancer submits work. The client approves or requests revision.
+Ask community organizers for introductions to suitable pairs. Approach the HackCanton community, DevWeb3Jogja and Blockchain Pioneer Student Club; these are unconfirmed outreach candidates. Each first participant can invite their existing counterparty. Observe joining, completion and unprompted repeat demand before adding reward incentives.
 
-04. **Settle payment** After approval, the freelancer settles and receives a ledger receipt.
+## Slide 10. Measure completed deals, not message counts.
 
-Encrypted group chat supports team discussion. Escrow currently uses two-person rooms.
+The proposed North Star is genuine buyer–seller deals settled per week. Count distinct deal IDs with receipts and a consented pilot record; exclude tests and self-dealing. No documented customer interviews or product conversion numbers have been supplied. First collect the baseline, observe five pairs, then test repeat use and willingness to pay.
 
-Sources: [docs/ESCROW.md](ESCROW.md), [frontend/lib/canton-room-runtime.ts](../frontend/lib/canton-room-runtime.ts)
+## Slide 11. Prove Canton first. Expand to multiple chains later.
 
-## 4. Escrow has explicit payment states
+Over the next 90 days, the proposed work is customer discovery, an observed Canton pilot and pricing/cost validation. Improve reliability and resolve settlement/recovery limitations before broader payment use. Multichain is a later direction selected from user demand; it requires chain-specific wallet, privacy and settlement integration. Neither bridging nor atomic cross-chain settlement is implemented.
 
-Acceptance, funding and settlement each require their own action.
+## Slide 12. Help us validate the next five private deals.
 
-| State | Who acts | What the state means |
+VINSS has an original Starknet product foundation and an inspectable Canton implementation, showing continuity of the product idea. We are seeking five pilot pairs, wallet/validator support and a review of settlement/recovery behavior. The next milestone is evidence that people complete and repeat the workflow. No funding amount, customer or partner commitment is claimed.
+
+## Slide 13. Inspect the implementation and the business hypotheses.
+
+Code reviewed at Canton revision 2709b047ea6a53e74d3b894802d5c599d10759ff. The revised business materials are supplied in the documentation package. The customer profile, acquisition plan, pilot thresholds and prices are hypotheses; no invented interviews or market-size figures are used.
+
+## Short demo recording sequence
+
+This is a recording guide, not evidence that the latest live browser flow has passed. Use two independent browser profiles/wallets for the direct deal; use a third for the separate group demonstration. Do not expose authentication secrets on screen.
+
+| Approximate time | Show | Say |
 | --- | --- | --- |
-| Accepted | Offer accepter | Both people have an agreement. |
-| Funded | Client / reviewer | VINSS has validated the referenced token allocation. |
-| Approved | Client / reviewer | The submitted work has approval for the VINSS settlement path. |
-| Settled | Freelancer / fulfiller | The token transfer completed and a receipt records the outcome. |
+| 0:00–0:20 | Home and connected wallet | “VINSS brings a private agreement and its payment workflow into one deal room.” |
+| 0:20–0:50 | Alice creates an invite; Bob opens the link or scans the QR | “Bring your existing counterparty without entering manual peer IDs.” Keep the creator available for admission. |
+| 0:50–1:15 | Both users send a message; reload and show local history | “Messages use OpenMLS encryption. Readable history stays on this device.” |
+| 1:15–1:50 | Create, review and accept a concrete offer | “Both sides can see the agreed scope and amount.” |
+| 1:50–2:30 | Fund, submit delivery, approve and settle | Show each real wallet action and the final receipt. Keep enough footage to distinguish accepted, funded, approved and settled. |
+| 2:30–2:50 | A separate three-person group | “Encrypted group chat is supported; escrow currently uses two-person rooms.” |
+| 2:50–3:10 | Closing view | “Next we validate real user demand. Escrow fees, individual VIP and multichain are later plans.” |
 
-VINSS references the allocation. The current module has no dispute or refund choice.
-
-Sources: [docs/ESCROW.md](ESCROW.md), [daml/Vinss/Deal.daml](../daml/Vinss/Deal.daml)
-
-## 5. Why Canton
-
-Private negotiation connects to an authorized business record.
-
-**Content privacy**
-
-OpenMLS encrypts chat and detailed offer terms in the browser.
-
-Members decrypt and keep plaintext history locally.
-
-**Deal authority**
-
-Canton controls contract visibility. Daml assigns each deal action to a Party.
-
-Token Standard Allocations provide the payment mechanism.
-
-Authorized ledger viewers can see deal metadata, including amounts and Parties.
-
-Sources: [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/TECHNICAL_OVERVIEW.md](TECHNICAL_OVERVIEW.md)
-
-## 6. Recorded technical progress
-
-A real DevNet settlement and a separate local messaging suite.
-
-| Evidence | Recorded result | Scope |
-| --- | --- | --- |
-| 6 Oct 2026 escrow | 1 CC transferred; receipt and receiver holding IDs retained | Real Canton DevNet run |
-| 7 Oct 2026 test suite | 69 tests passed across 24 files | Local automated tests |
-| Messaging integration | 10 test messages; Alice-Bob and three-member group | Real OpenMLS WASM; simulated ledger / wallet |
-
-The updated browser-wallet messaging flow still needs a fresh live recording.
-
-Sources: [docs/CANTON_DEVNET_E2E.md#verified-devnet-run-evidence](CANTON_DEVNET_E2E.md#verified-devnet-run-evidence), [docs/MESSAGING_E2E.md](MESSAGING_E2E.md)
-
-## 7. The first users already have a client
-
-Direct invitations make the product useful before marketplace scale.
-
-**Initial cohort**
-
-3-5 client-freelancer pairs.
-
-One defined digital deliverable, a named reviewer and compatible Canton wallets.
-
-**What the pilot must show**
-
-Both people can join and complete the funded workflow.
-
-They understand approval and choose to return for a second task.
-
-Proposed audience and pilot. Customer demand and retention are not yet measured.
-
-Sources: [docs/ICP_AUDIENCE.md](ICP_AUDIENCE.md), [docs/PILOT_PLAN.md](PILOT_PLAN.md)
-
-## 8. A subscription for recurring work
-
-Optional VIP is the proposed commercial model.
-
-**Benefits to validate**
-
-Reusable offer templates.
-Deal activity exports.
-More marketplace listings.
-
-The buyer is a freelancer or small team managing repeat projects.
-
-**How to test it**
-
-Observe second deals and interview repeat users.
-
-Identify the benefit they would pay for before setting a price or building billing.
-
-VIP billing and Points issuance are pending. Private chat and escrow are core features.
-
-Sources: [docs/GTM.md](GTM.md), [frontend/app/rewards/page.tsx](../frontend/app/rewards/page.tsx)
-
-## 9. A pilot with measurable decisions
-
-Recruit pairs, observe the first deal, then test repeat use.
-
-| Proposed measure | Target for a small pilot | Decision |
-| --- | --- | --- |
-| Invite and deal completion | At least 80% of controlled attempts | Fix recurring failures before expanding. |
-| Repeat use | At least 2 pairs start a second task within 14 days | Check whether the product solves a recurring need. |
-| VIP interest | At least 2 repeat-user interviews identify willingness to pay | Choose a benefit for a pricing test. |
-
-Targets are proposed, not achieved results. Report raw counts for the 3-5-pair cohort.
-
-Sources: [docs/METRICS_VALIDATION.md](METRICS_VALIDATION.md), [docs/GTM.md](GTM.md)
-
-## 10. The next Canton milestone
-
-Complete the live wallet demonstration and the first observed pilot.
-
-Record current-release chat and group delivery.
-Verify the funded deal through its settlement receipt.
-Use participant feedback to resolve the biggest blockers.
-
-Next product decisions: recovery, dispute/refund handling, self-service listings and VIP. Multichain follows Canton.
-
-Sources: [docs/PILOT_PLAN.md](PILOT_PLAN.md), [docs/SUBMISSION.md](SUBMISSION.md)
-
+Timing is a guide. Preserve the real transaction sequence if confirmations take longer. If a step fails, fix or disclose it rather than replacing it with a simulated success. Sample jobs and the demo route are previews, not real token-transfer evidence. Verify the published video and live app are accessible to judges, then add the video URL to SUBMISSION_FORM.md.

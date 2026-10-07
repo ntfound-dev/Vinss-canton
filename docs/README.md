@@ -1,26 +1,32 @@
 # VINSS documentation
 
-VINSS connects a private conversation to an agreement, delivery review and payment settlement on Canton. This folder packages the product, business and technical evidence for HackCanton League Season 3.
+VINSS is a private deal room connecting conversation, agreed terms and escrow settlement on Canton. Start with the submission material for the product story; use the technical references to inspect implementation and evidence.
 
-## Start here
+## HackCanton submission
 
-Read the [pitch deck](vinss-deck.pdf) for the product story, then [Demo and evidence](SUBMISSION.md) for the walkthrough and code map. [Submission text](SUBMISSION_FORM.md) contains the six judging sections ready to copy into the form.
-
-For payment, read [Deal & Escrow (Rekber)](ESCROW.md): roles, funding checks, delivery, revisions, approval and settlement. The [smart contract index](../daml/README.md) points directly to the messaging and escrow modules.
-
-## Materials by judging criterion
-
-| Criterion | Readable PDF | Editable source / detail |
+| Form section | Material | Format |
 | --- | --- | --- |
-| Value / Problem Statement | [Product value](vinss-value-statement.pdf) | [Value statement](VALUE_STATEMENT.md), [Business brief](BUSINESS_BRIEF.md) |
-| ICP / Audience | [Target users](vinss-icp-audience.pdf) | [Audience](ICP_AUDIENCE.md) |
-| Metrics / Validation | [Evidence summary](vinss-metrics-validation.pdf) | [Validation](METRICS_VALIDATION.md), [Messaging checks](MESSAGING_E2E.md), [DevNet settlement](CANTON_DEVNET_E2E.md) |
-| GTM Materials | [Go-to-market](vinss-gtm.pdf) | [Distribution and business model](GTM.md), [Pilot plan](PILOT_PLAN.md) |
-| MVP Materials | [Technical summary](vinss-technical-overview.pdf) | [Technical overview](TECHNICAL_OVERVIEW.md), [Architecture](ARCHITECTURE.md), [Demo guide](SUBMISSION.md) |
-| Pitch Materials | [Ten-slide pitch](vinss-deck.pdf) | [Editable deck](vinss-deck.pptx), [Pitch outline](PITCH.md), [Form text](SUBMISSION_FORM.md) |
+| Value / problem | [Value statement](VALUE_STATEMENT.md) | Markdown, ready to paste. |
+| ICP / audience | [Ideal customer profile](ICP_AUDIENCE.md) | Markdown, ready to paste. |
+| Metrics / validation | [Metrics and evidence](METRICS_VALIDATION.md) | Markdown, ready to paste. |
+| GTM | [Go-to-market](GTM.md) | Markdown, ready to paste. |
+| Demo | [Submission fields](SUBMISSION_FORM.md#demo) | Live URL, video URL when available, repository URL. |
+| Pitch | [VINSS pitch deck](vinss-deck.pdf) | The only submission PDF; under 10 MB. |
 
-## How the records relate
+[Submission form guide](SUBMISSION_FORM.md) maps the material to the fields. [Pitch notes](PITCH.md) contain the deck narrative and a short recording sequence. [Submission overview](SUBMISSION.md) summarizes what is available and what remains unverified.
 
-Markdown is the source text for the PDF briefs. The PPTX is the editable presentation. Architecture describes the current implementation and its trust boundaries. The DevNet runbook retains the dated settlement transaction and contract IDs.
+## Product and business
 
-The 69-test automated result uses real OpenMLS WASM over simulated ledger/wallet access. The earlier 1 CC DevNet settlement is separate live evidence. Proposed audiences, acquisition channels and pilot measures are business hypotheses. Points, VIP billing and multichain remain planned.
+- [Business brief](BUSINESS_BRIEF.md) — product scope, initial customer hypothesis and proposed revenue model.
+- [Pilot plan](PILOT_PLAN.md) — recruitment, measurement and decision gates.
+
+## Implementation and evidence
+
+- [Technical overview](TECHNICAL_OVERVIEW.md) — privacy, invitation, escrow and implementation boundaries.
+- [Architecture](ARCHITECTURE.md) — components and data flows.
+- [Escrow / rekber](ESCROW.md) — contract states and authorized actions.
+- [Messaging verification](MESSAGING_E2E.md) — local integration and live-test requirements.
+- [Canton DevNet evidence](CANTON_DEVNET_E2E.md) — historical 1 CC settlement and transaction references.
+- [Daml modules](../daml/README.md) — contract source map.
+
+The original [Starknet VINSS documents](https://github.com/DXJLabs/vinss/tree/main/docs) explain the product foundation. Canton behavior is governed by this repository's code. Fee/VIP/points plans are not implemented features. Current evidence and future targets are separated in the metrics document.

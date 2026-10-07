@@ -1,57 +1,58 @@
-# VINSS - Go-to-market / Business model
+# Go-to-market — VINSS
 
-## Acquire a pair through one private invite
+## 1. Positioning
 
-VINSS can begin with direct client work. A freelancer brings an existing client into a useful workflow without waiting for marketplace liquidity.
+For independent buyers and sellers who arrange digital work through private messages, VINSS is a private deal room that connects agreed terms to escrow settlement. Unlike a chat thread plus a separate wallet transfer, it gives both people a shared agreement, delivery review and payment state.
 
-## Positioning
+Today, this segment can use direct transfers, a trusted middleman or a marketplace. Canton lets VINSS combine selective business-record visibility, Party-authorized actions and token allocation execution; encrypted conversation is handled separately by OpenMLS.
 
-A private deal workspace for clients and freelancers on Canton. The message is concrete: discuss the work, agree on the offer, review delivery and settle payment in one room. Encrypted chat is the conversation layer. Escrow connects that conversation to a payment decision.
+## 2. First customers
 
-| Stage | Action | Evidence to collect |
+Start with wallet-using individuals buying or selling a small digital deliverable with a new counterparty. They can decide without enterprise procurement and can complete a pilot within days. This segment is a hypothesis, not a confirmed customer base.
+
+Outreach candidates: the HackCanton community, DevWeb3Jogja and Blockchain Pioneer Student Club. Ask community organizers for introductions to suitable buyer–seller pairs. None is a confirmed customer, sponsor or partner.
+
+## 3. Distribution channels
+
+| Channel | Why / first action | Initial effort and cost |
 | --- | --- | --- |
-| Recruit | Invite 3-5 pairs through freelancer communities and Canton builder contacts. | Source of each pair and the task they want to complete. |
-| Activate | Assist with the first controlled test-token deal and observe both wallets. | Invite success, funding failures and steps requiring help. |
-| Retain | Ask each successful pair to complete a second small task. | Repeat starts, completed payments and reasons for returning. |
-| Refer | Ask returning users to invite their next counterparty. | New pairs arriving through a completed engagement. |
+| Founder-led community outreach | Request permission, share a short workflow demo, invite ten qualified people to discuss a recent direct deal. | Two focused outreach sessions per week; track time and replies. No paid media budget initially. |
+| Counterparty invites | One interested user already knows the other side of a deal. Observe five pairs using the link or QR. | Concierge onboarding; measure join completion and support minutes. |
+| Marketplace Jobs | Discovery can feed the same room and offer flow. Recruit three consenting listing owners after publishing operations are defined. | Later experiment. Current committed catalogue is empty; no self-service publishing. |
 
-## The first case study
+## 4. Acquisition hypotheses
 
-With participant consent, document the original workflow, the task they completed in VINSS, where they needed help and whether they returned. Include the actual deal outcome. This gives the next prospect a concrete reason to try the product.
-
-## Proposed sequence
-
-Week 1: current-release wallet verification and recruitment. Week 2: first observed deals. Week 3: repeat tasks and interviews. Week 4: fix recurring blockers and decide the next cohort. This is a pilot proposal, not a delivery commitment.
-
-## Optional VIP for recurring client work
-
-The proposed business model is a subscription for people managing repeated projects. Core private chat and escrow remain the product foundation.
-
-| Proposed paid benefit | Recurring problem it could solve | Validation before billing |
+| Hypothesis | Test and success metric | Status |
 | --- | --- | --- |
-| Reusable offer templates | Rewriting the same scope and delivery conditions. | Watch repeat users create their second offer. |
-| Deal activity exports | Preparing client records and reviewing past engagements. | Ask users to show the export they actually need. |
-| More marketplace listings | Managing several available services or projects. | Validate listing demand once publishing exists. |
+| A concrete deal demo earns interviews from qualified users. | Ten personalized invitations; at least three interviews. | Planned. |
+| An existing counterparty joins without founder help. | Five pair invites; at least four join within 24 hours without manual peer IDs. | Planned. |
+| Completing one deal creates repeat demand. | Five pilot pairs; at least two request another deal within 30 days without rewards. | Planned. |
 
-## Commercial decisions still to make
+## 5. Business model
 
-Validate the paid benefit before setting a price and implementing billing. Track paid members, repeat deals and support time. Subscription revenue would equal paid memberships multiplied by price; no revenue forecast is supported yet.
+**Coming soon; not implemented.** Charge only for escrow/rekber, plus an optional individual VIP subscription. Room creation, private/group chat, offers, delivery, review, approval and release/claim carry no VINSS application fee. Network costs are separate.
 
-## Costs and the expansion decision
+| Planned option | Pricing hypothesis |
+| --- | --- |
+| Standard escrow | Payer pays 0.5% of principal, minimum USD 0.10 per deal. |
+| Individual VIP | USD 3/month; 2× qualifying points and 20% off the escrow rate: 0.4%, with the same USD 0.10 minimum. |
 
-Measure hosting, ledger transaction costs, support effort and the cost of recruiting an activated pair. Network charges and a future VINSS subscription are separate costs. Broader payment use also needs a dispute/refund design and reliability work. Expand the cohort when users complete and repeat the flow with a manageable support burden.
+For a USD 100 equivalent deal, the proposed escrow fee is USD 0.50 standard or USD 0.40 VIP. VIP costs an additional USD 3/month; the fee discount alone offsets that price at roughly USD 3,000 of monthly qualifying volume when the minimum fee does not apply. Occasional users can stay on the standard plan.
 
-## Marketplace, Points and multichain
+Free users would earn normal points. Points have no assigned cash value or guaranteed token entitlement; a possible VINSS airdrop is deferred. Pricing, fee collection timing, asset conversion and anti-abuse rules require validation before billing. This plan replaces earlier preview ideas for paid templates, exports or extra listings. There is no assumption of token-sale income or Featured App rewards.
 
-The current marketplace reads published listings from a committed dataset; it does not yet provide self-service publishing. Add that capability after direct invites work reliably. Points are a planned activity-reward feature with rules still to define. Multichain follows the Canton workflow and requires separate wallet and settlement integrations.
+Why now: the existing Canton settlement proof enables a focused adoption test. Measure network/infrastructure costs and support per deal before claiming viable margins.
 
-## Current commercial status
+## 6. First 90 days
 
-VIP pricing, billing and entitlements are pending. Points issuance is not active. The plan assumes no confirmed partner, transaction-fee revenue or network-reward income.
+| Period | Milestone | Done when |
+| --- | --- | --- |
+| Weeks 1–4 | Validate the pain and onboarding. | Ten interviews; five recruited pairs; failures recorded. |
+| Weeks 5–8 | Run the pilot and improve completion. | Four of five pairs finish a DevNet rehearsal; support and cost measured. |
+| Weeks 9–12 | Test repeat demand and pricing. | Two pairs request another deal; five pricing discussions; explicit go/no-go for billing and broader rollout. |
 
-## Sources
+**Beyond the first pilot:** expand VINSS to multiple chains when customer demand justifies another wallet, privacy and settlement integration. Canton is the current focus. Multichain support and cross-chain settlement are not active capabilities or promised 90-day milestones.
 
-- [Business brief](BUSINESS_BRIEF.md)
-- [Pilot dependencies](PILOT_PLAN.md)
-- [VIP and Points preview](../frontend/app/rewards/page.tsx)
-- [Marketplace dataset](../frontend/data/jobs.json)
+## 7. Risks and ecosystem needs
+
+Wallet friction, inviting the second user, unsettled dispute/refund design and small-deal operating costs could block adoption. We need introductions to pilot pairs, reliable wallet/validator access and review of settlement and recovery behavior. Expand beyond the initial segment only when completion and repeat use justify it.

@@ -1,33 +1,41 @@
-# VINSS — pilot plan
+# VINSS pilot plan
 
-The immediate goal is a reliable client–freelancer workflow on Canton. The sequence below is proposed work; participants, commercial demand and production readiness have not been established.
+This is a proposed learning plan, not an announced partnership or a completed pilot. Begin with a DevNet rehearsal; broader live-value use requires separate readiness decisions.
 
-## 1. Verify the current release with separate wallets
+## Participants and task
 
-Run Alice–Bob invitation, QR join, messaging, history reload and the funded delivery/approval/settlement lifecycle. Run a separate three-person group conversation and check ledger visibility using isolated users.
+Recruit ten individuals as five buyer–seller pairs. Each pair should already have a plausible digital task to discuss, a defined output and a person who can accept it. Avoid tasks that depend on logistics, arbitration or complex asset verification absent from the current Canton implementation.
 
-**Dependencies:** compatible Canton wallets, authorized participant access, deployed/vetted messaging and deal templates, the selected network's token registry, and a test-token balance.
+Start with ten short interviews about recent deals. Ask for the steps actually taken, what went wrong, how funding and scope were checked, and why the participant would keep or replace that process. Obtain permission before publishing quotes; record refusals and negative feedback.
 
-**Exit evidence:** dated network and release identifiers; actual messaging and settlement updates; the receipt and receiver Holding references; confirmation that an unrelated Party cannot query private message contracts. Capture wallet authorization failures rather than counting them as successful steps.
+## Observe the complete workflow
 
-## 2. Validate a small freelance pilot
+1. Connect two distinct Canton wallets and create an invite link or QR.
+2. Have the other participant join; record whether founder assistance was needed.
+3. Exchange private messages, agree on a concrete scope and accept the offer.
+4. Fund the token allocation and confirm the funded state.
+5. Submit a delivery reference; review, request a revision if relevant, and approve.
+6. Settle and record the deal ID, ledger update and receipt.
+7. Reload the room to check local history and ask both participants what remains unclear.
 
-Recruit a proposed starting cohort of 3–5 client–freelancer pairs with bounded digital tasks. Observe invitation join, offer clarity, funding, delivery review and repeat use. Begin with a controlled test-token exercise; real payment use requires a defined response to failed funding, incomplete delivery and disputes.
+Group messaging is a separate demonstration. Do not imply the group supports the two-party escrow workflow.
 
-**Dependencies:** consent from participants, a clear support contact, agreed deliverables, usable wallet onboarding and a storage/recovery explanation.
+## What to record
 
-**Measure:** invite-to-room success, completed workflows versus attempted workflows, wallet/network failure counts, time to agree and settle, repeat use and interview feedback. These are proposed metrics, not results already achieved.
+Use a consented pilot register with pair ID, date, network, core-step completion, blocking error, assistance minutes and receipt references. Keep sensitive scope and message contents out of analytics. Distinguish a real user transaction from a team smoke test or DevNet rehearsal.
 
-**Proposed scorecard:** [Metrics and validation](METRICS_VALIDATION.md) defines completion, repeat-use and VIP interview targets. Report raw counts for this small cohort.
+Record current workaround time before comparing the VINSS experience. Ask whether participants want a second deal before introducing points or VIP; otherwise incentives may hide weak product demand.
 
-**Decision:** fix the largest repeated failure before expanding the cohort. The current contract has no dispute/refund choice, so this gap needs an explicit product and contract decision before broader real-payment use.
+## Decision gates
 
-## 3. Expand the validated Canton experience
+| Gate | Proposed evidence |
+| --- | --- |
+| Onboarding | Four of five counterparties join without manual peer IDs. |
+| Core value | Four of five pairs complete the DevNet workflow. |
+| Repeat demand | Two pairs voluntarily request a second deal within 30 days. |
+| Pricing | Five discussions of 0.5% escrow and USD 3 individual VIP; record objections, not just interest. |
+| Operational readiness | Per-deal infrastructure costs, support burden, connection/recovery failures and allocation behavior reviewed. |
 
-Build self-service listing publication with ownership checks and listing management; the current marketplace reads a committed dataset. Add recovery and reliability work based on pilot failures, including cross-device needs and safe coordination of MLS state.
+Failure to meet a gate is information. Fix the identified problem or narrow the segment before expanding acquisition. Refund/dispute design, reliable recovery and security review remain dependencies for a broader payment product. MainNet deployment is not a promised pilot milestone.
 
-Validate willingness to pay before implementing optional VIP billing, entitlements and pricing. Define the purpose and earning rules for Points before issuing rewards. Keep chat and escrow as the core workflow described in the current product.
-
-**Dependencies:** persistent listing storage, authenticated publishing, a billing/entitlement design, and privacy-preserving support diagnostics. Neither VIP payments nor Points issuance exists today.
-
-Multichain is a later phase. It needs a separate design for wallet identity, message delivery and settlement per network; additional chains are not part of the current Canton pilot.
+After Canton validation, record which other networks participants actually need. Use that evidence to choose a future multichain integration; do not expand the present pilot into cross-chain settlement.

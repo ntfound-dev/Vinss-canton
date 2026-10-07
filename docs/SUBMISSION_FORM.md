@@ -1,57 +1,50 @@
-# VINSS - submission text
+# HackCanton submission fields — VINSS
 
-Copy the relevant section into the Season 3 form. Confirm live links, the selected track and video URL before submitting. The six sections match the judging criteria published in the supplied Season 3 materials.
+Use the English material below in the corresponding form sections. The business sections follow the organizer's supplied templates. No customer interview, revenue or adoption result has been invented to fill a field.
 
-## Project name
+## Project details
 
-VINSS
+| Field | Prepared content |
+| --- | --- |
+| Project name | VINSS |
+| Suggested track | Real-World Asset (RWA) & Business Workflows — the fit is the business-workflow component: agreement, fulfillment and settlement. VINSS does not claim to tokenize real-world assets. |
+| Short description | A private deal room connecting encrypted conversation, agreed terms and escrow settlement on Canton. Bring a counterparty through an invite link or QR, review delivery and settle against the agreement. |
+| Tech stack | Canton, Daml, TypeScript, Next.js, React, Rust, OpenMLS, WebAssembly, Canton Token Standard |
+| Project Telegram / X | Supply the project's actual public links. None was supplied for this revision. |
+| Contact Telegram / email | Enter the founder's chosen contact details directly in the form. |
 
-## Elevator pitch
+For optional challenges, claim only an integration whose eligibility can be demonstrated. Wallet connectivity alone does not establish a completed named-wallet bounty, and the Canton settlement proof does not establish a BitSafe decentralized-Party deployment.
 
-VINSS is a private deal workspace on Canton. A client and freelancer join with a wallet-connected invite link or QR, agree on work inside an encrypted conversation, fund escrow, review delivery and settle payment after approval. OpenMLS protects detailed messages and terms. Canton records the agreement, authorized actions and settlement receipt.
+## Value / problem statement
 
-## Value / Problem Statement
+Paste [VALUE_STATEMENT.md](VALUE_STATEMENT.md).
 
-A direct freelance deal often spans a chat app, a job board and a separate payment service. The scope changes in conversation while funding and payment status live elsewhere. VINSS brings those steps into one room: private discussion, an accepted offer, allocation-backed funding, delivery review and settlement. The intended benefit is a clearer shared understanding of the work and its payment state. The current Canton MVP provides a concrete workflow to validate with client-freelancer pairs.
+## ICP / audience
 
-## ICP / Audience
+Paste [ICP_AUDIENCE.md](ICP_AUDIENCE.md).
 
-The proposed first audience is independent freelancers and clients buying a bounded digital deliverable, such as development, design or writing. Freelancers need to confirm the accepted scope and whether the agreement is funded. Clients need to review delivery against the terms and understand payment approval. A small team managing repeat work is the proposed audience for optional VIP tools. These are audience hypotheses, not established customer traction.
+## Metrics / validation
 
-## Metrics / Validation
+Paste [METRICS_VALIDATION.md](METRICS_VALIDATION.md). Update only with evidence actually collected; retain “not measured” where appropriate.
 
-The repository records a real Canton DevNet escrow settlement on 6 October 2026: 1.0000000000 Amulet transferred through the Token Standard and a VINSS SettlementReceipt recorded the receiver Holding reference. Transaction and contract IDs are in CANTON_DEVNET_E2E.md.
+## GTM
 
-On 7 October 2026, 69 automated tests across 24 files passed. The messaging integration uses actual OpenMLS WASM and production Canton transport over a simulated ledger. It covers Alice-Bob delivery, three-member groups, delayed readers, local history/checkpoint reload, QR decoding and ciphertext-only message contracts. This is local verification, separate from current live wallet authorization. A fresh isolated-wallet run of the updated messaging release and user interviews remain to be recorded.
+Paste [GTM.md](GTM.md). Prices and VIP benefits are a coming-soon hypothesis, not active billing.
 
-Proposed pilot measures are successful invite joins, completed funded workflows versus attempts, wallet failures, time to agreement/settlement and repeat use. No revenue, retention or completed interview figures are claimed.
+## Demo
 
-## GTM Materials
+| Field | Value |
+| --- | --- |
+| Live demo URL | https://vinss-canton.vercel.app |
+| Demo video link | Not supplied yet; add the recorded video's shareable URL. |
+| GitHub repository | https://github.com/ntfound-dev/Vinss-canton |
 
-Begin with direct invitations between a client and freelancer, so the first useful workflow does not depend on a large marketplace. Recruit a proposed cohort of 3-5 pairs through freelance communities and Canton builder/community contacts, initially using test tokens. Publish consented case studies after completed workflows and test whether participants bring another counterparty.
+This section requires links, not a PDF. Confirm the live URL and eventual video are accessible to a judge without a private account. The last supplied deployment log reported authentication protection; access has not been independently confirmed in this document.
 
-Add self-service job publication after the private flow works reliably. Validate willingness to pay before implementing optional VIP subscriptions. Reusable templates, more listings and deal exports appear in the membership preview. Pricing, billing, Points rules and any future token model remain undecided. No confirmed partnerships or network-reward income are assumed.
+## Pitch
 
-## MVP Materials
+Upload [vinss-deck.pdf](vinss-deck.pdf). This is the only PDF in the revised submission package and is below the form's 10 MB limit.
 
-The current code implements Canton wallet integration, signed invitation/installation binding, downloadable invite QR, real OpenMLS private and group messaging, local plaintext history, encrypted MLS checkpoints, private offers, delivery review and Token Standard Allocation-backed escrow settlement. Published jobs can create a private room and pre-fill an offer draft. The committed live listing dataset is currently empty, and sample jobs or /demo use a simulated preview flow.
+## Before submitting
 
-Groups support messaging but not offers or escrow. The current contracts have no dispute/refund choice. History does not synchronize to another device. Acceptance and allocation/funding are separate wallet operations.
-
-App: https://vinss-canton.vercel.app
-
-Public repository: https://github.com/ntfound-dev/Vinss-canton
-
-Code and evidence map: [SUBMISSION.md](SUBMISSION.md)
-
-## Pitch Materials
-
-[Pitch deck PDF](vinss-deck.pdf) and [editable deck](vinss-deck.pptx) cover the product, user problem, workflow, Canton privacy/authority, technical evidence, initial audience, business/distribution and pilot plan. PDF briefs provide separate value, ICP, validation, GTM and technical summaries. [Document index](README.md).
-
-## Submission fields to finish
-
-- Selected competition track: confirm against the actual Season 3 form.
-- Demo video URL: add after recording the current wallet-connected workflow.
-- Team/member fields: enter the real team details in the form.
-
-A public site URL does not establish signed-out access or successful wallet connectivity. Check both before submitting the link. Keep tokens and credentials out of the form, repository and video.
+Supply real project/contact details and a video URL if ready. Check live access. Add any newly collected interview and current-browser DevNet evidence. Do not turn planned pilot targets, local test messages or proposed VIP pricing into achieved traction.

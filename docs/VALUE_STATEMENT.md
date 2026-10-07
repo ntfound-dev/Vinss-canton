@@ -1,54 +1,51 @@
-# VINSS - Value / Problem Statement
+# Value — VINSS
 
-## Private chat with a payment workflow
+## 1. The problem in one sentence
 
-VINSS helps two people agree on digital work, fund escrow and settle payment after delivery approval in the same private room.
+Independent buyers and sellers arranging digital work through private messages struggle to exchange payment and delivery with a new counterparty because their conversation, final terms and payment records are disconnected, leaving one person to pay or deliver first without a shared process for completing the deal.
 
-## The problem: the agreement gets separated from the payment
+Our initial focus is a small, clearly scoped digital task between two crypto wallet users. This is an entry segment for VINSS, not the limit of the product.
 
-A client hires a freelancer through a community or personal contact. They negotiate in chat, send a payment elsewhere and review the work in another thread. When the scope changes, neither person has one place that shows the accepted terms, funding status and delivery decision.
+## 2. The value we create
 
-The freelancer needs to know that the agreed payment is funded before delivering. The client needs to review the work against the accepted offer before approving settlement. A payment receipt alone does not explain what work both people agreed to.
-
-## The product: a private room for the whole deal
-
-One person creates an invite link or QR. The other connects a Canton wallet and joins. They discuss the work privately, create an offer and record acceptance. The client funds escrow, the freelancer submits delivery, and the client approves or requests a revision. After approval, the freelancer settles the payment and receives a ledger receipt.
-
-| For the client | For the freelancer |
-| --- | --- |
-| Read the agreed scope beside the delivery and approve the work explicitly. | See whether escrow is funded and what action is needed to complete payment. |
-| Keep private work discussions in the room. | Keep the accepted offer and settlement record connected to the conversation. |
-
-## Initial use case
-
-A client and freelancer completing one defined digital task. The product also supports encrypted group chat. The current escrow flow is between two people.
-
-## How a design job becomes a settled deal
-
-Illustrative example: a client commissions one landing-page design. This example explains the workflow; it is not a reported customer transaction.
-
-| Step | What the people do | What VINSS records |
+| | Today: direct messages and a separate wallet | With VINSS |
 | --- | --- | --- |
-| 1. Invite | The designer shares a private link or QR with the client. | A wallet-bound private room. |
-| 2. Agree | They define the deliverable, price and review terms. The client accepts. | Private terms in encrypted chat and an accepted agreement on Canton. |
-| 3. Fund | The client authorizes an allocation for the agreed payment. | A validated escrow reference. Acceptance alone does not prove funding. |
-| 4. Review | The designer submits work. The client approves or requests revision. | Delivery and review hashes with the authorized decision. |
-| 5. Settle | After approval, the designer executes settlement. | A receipt referencing the receiver token holdings. |
+| What the user does | Negotiates in chat, finds the final terms among messages, sends a transfer and exchanges delivery/payment screenshots. | Invites the counterparty into a private room, accepts an offer, funds an allocation, submits delivery, reviews it and settles against the agreement. |
+| Time / cost / risk | Repeated checking; uncertainty about the accepted scope and whether payment is ready; a transfer alone does not establish that delivery was approved. | Both people can follow the same agreement and payment states. In the VINSS settlement path, approval precedes execution of the referenced payment allocation. |
 
-## Why Canton is part of the product
+**Value proposition:** VINSS connects private conversation, agreed terms and escrow settlement in one deal room.
 
-Canton gives the business record named participants, controlled visibility and actions enforced by Daml contracts. OpenMLS encrypts the conversation before messages reach the ledger. Token Standard Allocations connect the accepted agreement to the payment. Together, these support private negotiation with a shared record of who approved each deal action.
+**Why switch:** people can bring an existing counterparty through an invite link or QR, without first moving their relationship into a new public marketplace. The reason to return should be a clearer, completed deal—not a reward for sending more messages.
 
-## The value to validate next
+VINSS does not guarantee the quality of off-chain work. The current Canton contract has no dispute-resolution or refund choice; this limits the kinds of deals suitable for an early pilot.
 
-The pilot will test whether clients and freelancers can complete this workflow with less manual reconciliation and choose to use it for a second task. The existing evidence establishes software progress. Customer demand and repeat use still need measurement.
+## 3. Why it matters
 
-## Payment boundary
+The conflict affects both sides. A buyer wants evidence before paying. A seller wants payment assurance before releasing work. A vague agreement increases the chance that they disagree about what counts as completion.
 
-VINSS references the token allocation rather than holding funds in an application wallet. The current module has no dispute, arbitration or refund choice. Broader real-payment use requires that product decision.
+The money at risk depends on the deal amount; the coordination cost depends on time spent finding terms, confirming funding and chasing approval. We have not yet measured those costs with customers. We will ask pilot users to walk through their last direct deal and record these steps before comparing VINSS.
 
-## Sources
+**Evidence and its limits:** the FTC explains that cryptocurrency payments are generally difficult to reverse and that public blockchain transactions may expose payment information. This supports the importance of payment context and privacy, but does not establish demand for VINSS or quantify losses in our initial segment. Our existing product and technical tests establish feasibility, not customer validation.
 
-- [Product and business](BUSINESS_BRIEF.md)
-- [Escrow roles and contract lifecycle](ESCROW.md)
-- [Privacy and storage boundaries](ARCHITECTURE.md)
+**How many people have this problem:** no defensible market-size estimate has been established. The first validation cohort is a proposed five buyer–seller pairs. It is a recruitment target, not a market-size claim.
+
+## 4. Why now
+
+Canton wallet connectivity, programmable Daml workflows and Token Standard Allocations give us components for connecting a private agreement to an authorized payment action. VINSS has already recorded one 1 CC DevNet settlement through that path.
+
+Chat, escrow services and payment applications existed before VINSS. Our opportunity is to combine negotiation and settlement without requiring a public negotiation record or a separate manual intermediary. Whether this combination is worth switching for remains a pilot question.
+
+## 5. Why Canton
+
+Canton provides selective contract visibility and Party-authorized actions for the shared business record. Daml connects the VINSS settlement action to execution of a Token Standard Allocation and creation of a settlement receipt in the same transaction. OpenMLS separately encrypts conversation content in the browser; recipients keep readable history locally.
+
+A database could coordinate the interface, but the operator would remain the source of truth for the deal state and would need a separate settlement integration. A public chain can implement escrow, but confidential negotiation and selective business-record visibility require additional design. Canton fits this product because privacy, authorization and asset workflows can work together.
+
+This is not complete anonymity: authorized ledger viewers can see deal metadata such as Parties, amounts and status. VINSS currently focuses on Canton; multichain support is a later direction.
+
+### Sources
+
+- [FTC: cryptocurrency payments and scams](https://consumer.ftc.gov/articles/what-know-about-cryptocurrency-scams) — background evidence, not VINSS customer research.
+- [Canton protocol](https://www.canton.network/protocol) — selective disclosure and transaction model.
+- [VINSS escrow implementation](https://github.com/ntfound-dev/Vinss-canton/blob/2709b047ea6a53e74d3b894802d5c599d10759ff/daml/Vinss/Deal.daml), [escrow explanation](https://github.com/ntfound-dev/Vinss-canton/blob/2709b047ea6a53e74d3b894802d5c599d10759ff/docs/ESCROW.md), and [recorded DevNet run](https://github.com/ntfound-dev/Vinss-canton/blob/2709b047ea6a53e74d3b894802d5c599d10759ff/docs/CANTON_DEVNET_E2E.md).
+- [Original VINSS product foundation](https://github.com/DXJLabs/vinss/tree/main/docs/product) — product continuity; Canton implementation is documented in this repository.

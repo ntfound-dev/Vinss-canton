@@ -1,81 +1,58 @@
-# VINSS - MVP / Technical overview
+# VINSS — technical overview
 
-## Private content with shared deal state
+Code reference: Canton revision `2709b047ea6a53e74d3b894802d5c599d10759ff`. This document describes implementation and evidence boundaries; business hypotheses are in [GTM](GTM.md).
 
-VINSS runs message encryption in the browser and records authorized business actions on Canton. The wallet connects the user to their ledger Party.
+## Product boundary
 
-| Layer | Responsibility | Code entry point |
+VINSS connects private conversation, structured offers and two-party escrow settlement. Direct invites and Marketplace Jobs enter the same room workflow. Seven offer templates cover freelance work, token trades, physical goods, digital goods, bounties, NFT deals and custom deals. These are input structures, not proof that delivery verification and dispute handling exist for every category.
+
+The private-deal concept continues from [VINSS on Starknet](https://github.com/DXJLabs/vinss). This Canton implementation uses different contracts, wallets and settlement mechanisms; features from the earlier implementation are not automatically present here.
+
+## Components and responsibilities
+
+| Component | Responsibility | Main source |
 | --- | --- | --- |
-| Browser app | Invite and QR flow, chat, offer, delivery and escrow actions. | frontend/app/; frontend/lib/ |
-| OpenMLS WASM | KeyPackages, group admission, message encryption and decryption. | wasm/vinss_mls/; frontend/lib/openmls/ |
-| Canton messaging | Signed peer binding and transport of encrypted envelopes. | daml/Vinss/Messaging.daml; src/messaging/canton/ |
-| Deal & Escrow | Agreement, funding reference, fulfillment, review and settlement authority. | daml/Vinss/Deal.daml |
-| Token registry | Allocation creation and authorized token transfer. | src/canton/token-wallet.ts |
+| Next.js frontend | Wallet entry, rooms, invites, jobs, offers and deal UI. | [frontend](../frontend) |
+| OpenMLS WASM | Group key state, authenticated membership and encrypted message content. | [OpenMLS provider](../src/messaging/openmls/provider.ts) |
+| Canton transport | Publishes and reads encrypted message contracts with Party visibility. | [transport](../src/messaging/canton/transport.ts) |
+| Local history | Stores readable messages on the user's device; distinct from encrypted MLS checkpoints. | [local storage](../src/messaging/local) |
+| Daml deal module | Agreement, funded allocation reference, fulfillment, review and settlement receipt. | [Deal.daml](../daml/Vinss/Deal.daml) |
 
-## Invitation to an encrypted room
+## Invite and group flow
 
-The creator shares an invite URL or its QR. The joiner connects a wallet and publishes the signed registration and KeyPackage. The creator resolves the Party/installation binding and admits the peer through MLS Welcome/Commit. A URL starts admission; wallet binding supplies the peer identity. The normal join flow does not ask the user to type peer IDs.
+An invite link or QR carries the conversation invitation. Joining requires a wallet-bound installation and a published KeyPackage; the creator resolves the peer binding and admits it into OpenMLS. This avoids asking ordinary users to enter Party and Installation IDs. The creator's original browser installation must be available for admission in the current flow.
 
-## Private chat and groups
+Group messaging uses the same encryption foundation. The supplied tests exercise three members. A higher UI member limit is not a scalability result. Group escrow and multi-party offers are not implemented.
 
-The sender encrypts content in the browser. Canton carries EncryptedMessage ciphertext and envelope metadata to designated Parties. Recipients decrypt locally. Private rooms support deal actions. Group rooms support encrypted conversation and membership display, with creator-assisted admission.
+## What is private, and where
 
-## Runtime condition
+Message content and detailed offer content are encrypted in the browser. Canton receives encrypted message payloads, while authorized recipients decrypt and retain readable history locally. MLS checkpoints use encrypted local storage with a device key. This does not make the local plaintext history encrypted: device/browser access remains part of its security boundary.
 
-The creator must remain available in the original browser for admission. The UI supports up to 32 group members; the recorded automated group scenario uses three members.
+The ledger still contains routing and business metadata. Authorized viewers can see fields such as Parties, amounts, hashes and deal status. OpenMLS content encryption and Canton's contract visibility are complementary; neither should be described as hiding all metadata.
 
-## Where text, keys and payment records live
+## Escrow / rekber
 
-Message plaintext stays in browser storage after decryption. The ledger carries message ciphertext and the business metadata required by the contracts.
+1. A proposal is accepted into a `DealAgreement`.
+2. The payer/reviewer authorizes a Token Standard Allocation. `FundEscrow` validates the reference against the expected instrument, amount, sender, receiver, executor and deal reference, then creates `DealEscrow`.
+3. The fulfiller submits delivery. The reviewer approves or requests revision.
+4. The fulfiller invokes `Settle`. The VINSS path executes `Allocation_ExecuteTransfer` and creates `SettlementReceipt` in the same Daml transaction.
 
-| Data | Storage and visibility |
+An accepted offer is not funded escrow. Approval is not completed settlement. VINSS references a token allocation rather than collecting principal into an application-owned wallet. Behavior outside the VINSS path depends on the underlying token allocation implementation and its authorized choices.
+
+The current module has no dispute-resolution or refund choice and does not automatically verify off-chain work quality. See [Escrow](ESCROW.md) for the contract explanation and [Architecture](ARCHITECTURE.md) for the full component model.
+
+## Marketplace and future commercial features
+
+The current marketplace reads a committed job catalogue, supports browsing/filtering and creates a room/offer draft for a valid listing. The current live catalogue is empty; demo jobs are sample data. Self-service publishing is not implemented.
+
+Escrow fees, individual VIP, points and a possible airdrop are future plans. The agreed business plan is 0.5% escrow (USD 0.10 minimum), optional USD 3/month individual VIP with 2× qualifying points and a 20% escrow-rate discount. No billing or points issuance is implemented by this documentation update. Earlier UI preview ideas for other VIP benefits are not the agreed commercial plan. Multichain remains later work.
+
+## Verification
+
+| Evidence | Scope |
 | --- | --- |
-| Sent and received message text | Plaintext in local IndexedDB, scoped by network, Party, installation and room. |
-| MLS keys and checkpoints | Local IndexedDB, encrypted at rest using a non-exportable device key. |
-| Message ciphertext and envelope | Canton messaging contracts, visible to designated Parties and authorized infrastructure. |
-| Detailed offer terms | Inside the encrypted conversation. The proposal records a terms hash. |
-| Amount, asset, Parties and deal state | Canton deal contracts according to signatory and observer roles. |
+| Recorded 1 CC settlement on 6 October 2026 | One real Canton DevNet scenario, with receipt/update/holding references. |
+| Developer-supplied 7 October output: 69 tests, 24 files passed | Local automated coverage, not user adoption or a security audit. |
+| Ten-message direct/group integration | Real OpenMLS WASM, simulated ledger and wallet. |
 
-## What each privacy layer does
-
-OpenMLS protects message content before it reaches the transport. Canton controls which Parties can observe contract data and exercise choices. Authorized ledger infrastructure can still see ciphertext and metadata. Deal amounts and Parties are not hidden from their authorized ledger viewers.
-
-## Local history and recovery
-
-Reloading the same browser can restore stored plaintext history and encrypted MLS checkpoints. Clearing site storage removes both. Another device does not inherit them. History and checkpoint writes are not atomic, and simultaneous tabs do not share an MLS write lock. These are current recovery and reliability limits.
-
-## Verification scope
-
-The local integration tests use real OpenMLS WASM over simulated ledger/wallet access. They check two-person and group messages, reload, replay, delayed reads and ciphertext-only submissions. A current live browser-wallet run remains a separate verification step.
-
-## Deal & Escrow (Rekber)
-
-The payer creates a Token Standard Allocation. VINSS validates its link to the deal, carries the reference through review and settles after approval.
-
-| Contract stage | Authorized action | Result |
-| --- | --- | --- |
-| DealProposal | Accepter accepts the offer. | DealAgreement |
-| DealAgreement | Reviewer/payer funds with an existing allocation. | DealEscrow |
-| DealEscrow | Fulfiller/payee submits delivery hash. | DealFulfillment |
-| DealFulfillment | Reviewer approves or requests revision. | FulfillmentApproval or DealRevisionRequest |
-| DealRevisionRequest | Fulfiller submits revised delivery. | DealFulfillment, next round |
-| FulfillmentApproval | Fulfiller executes Settle. | Token transfer and SettlementReceipt |
-
-## Checks at funding and settlement
-
-FundEscrow matches the allocation admin, asset, amount, deal reference, sender, receiver and executor to the agreement. Settle exercises Allocation_ExecuteTransfer using registry-supplied context and records receiver holding references. VINSS references the allocation rather than taking custody of the funds.
-
-## Acceptance, funding and payment are distinct states
-
-The UI performs acceptance and allocation/funding as separate wallet steps. An accepted agreement can remain unfunded if the second step fails. Approval creates authority for the VINSS settlement path. Completion requires the transfer and receipt, not only a chat status message.
-
-## Implemented boundary
-
-No dispute, arbitration, refund or group escrow choice exists in this module. Other actions on the allocation remain governed by the token implementation. The recorded live evidence is a 1 CC DevNet settlement on 6 October 2026.
-
-## Sources
-
-- [Architecture and runtime limits](ARCHITECTURE.md)
-- [Complete escrow guide](ESCROW.md)
-- [Messaging verification](MESSAGING_E2E.md)
-- [Live settlement identifiers](CANTON_DEVNET_E2E.md#verified-devnet-run-evidence)
+A fresh browser-wallet recording of the current build remains outstanding. Historical settlement evidence and local messaging tests must not be combined into a claim that the latest entire UI flow has been retested live. Details: [DevNet evidence](CANTON_DEVNET_E2E.md), [messaging checks](MESSAGING_E2E.md), [validation status](METRICS_VALIDATION.md).

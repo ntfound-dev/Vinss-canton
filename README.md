@@ -1,14 +1,14 @@
 # VINSS · Canton
 
-**Private conversations. Clear agreements. Payment after approval.**
+**A private deal room connecting conversation, agreed terms and escrow settlement.**
 
-VINSS brings a client and a freelancer into one private room to discuss work, agree on an offer, fund escrow, review delivery and settle payment on Canton. Join through an invitation link or QR, or start a conversation from a published job.
+VINSS brings two people into one private room to negotiate, agree on an offer, fund escrow, review delivery and settle payment on Canton. Join through an invitation link or QR, or start from a published marketplace job. Small digital-service deals are the initial validation segment; the product is a broader private transaction workspace.
 
 [Open the app](https://vinss-canton.vercel.app) · [Pitch deck](docs/vinss-deck.pdf) · [Submission materials](docs/README.md) · [Demo and evidence](docs/SUBMISSION.md)
 
 ## The problem
 
-A freelance deal often spans a chat app, a job board and a separate payment service. The scope changes in conversation, the payment status lives elsewhere, and both people have to keep those records aligned.
+People arranging a direct deal with a new counterparty must decide who pays or delivers first. Their conversation, final terms and payment records live in different places. Messages and transfer screenshots do not provide a shared process for completing the agreement.
 
 VINSS puts the conversation, offer and delivery decisions together. Private terms travel through encrypted messages; Canton records agreement and settlement state. The client can approve the delivery before the freelancer settles the funded allocation.
 
@@ -22,7 +22,7 @@ Use two separate browser profiles and compatible Canton wallets on the same netw
 4. **Deliver and settle:** the freelancer submits work; the client approves or requests a revision. After approval, the freelancer settles and the ledger produces a `SettlementReceipt`.
 5. **Show group messaging separately:** create a Group chat invite, keep the creator's group open, admit Bob and Charlie and send from all three accounts. Groups currently support messaging; offers and escrow use two-person rooms.
 
-The [demo guide](docs/SUBMISSION.md) maps each step to its code and evidence. The `/demo` route and sample jobs are explicitly simulated previews; use a wallet-connected room to demonstrate real transactions.
+The [pitch notes and recording guide](docs/PITCH.md) explain what to demonstrate; [submission evidence](docs/SUBMISSION.md) separates implemented behavior from verification. The `/demo` route and sample jobs are explicitly simulated previews; use a wallet-connected room to demonstrate real transactions.
 
 ## Why Canton
 
@@ -72,10 +72,10 @@ The [document index](docs/README.md) maps materials to all six Season 3 judging 
 | [Target audience](docs/ICP_AUDIENCE.md) | [Architecture](docs/ARCHITECTURE.md) |
 | [Business brief](docs/BUSINESS_BRIEF.md) | [Messaging verification](docs/MESSAGING_E2E.md) |
 | [GTM](docs/GTM.md) and [pilot plan](docs/PILOT_PLAN.md) | [DevNet settlement evidence](docs/CANTON_DEVNET_E2E.md) |
-| [Pitch outline](docs/PITCH.md) | [Demo and code map](docs/SUBMISSION.md) |
+| [Pitch notes](docs/PITCH.md) | [Submission evidence](docs/SUBMISSION.md) |
 | | [Deal & Escrow (Rekber)](docs/ESCROW.md) |
 
-The index also links PDF briefs of product value, audience, validation, GTM and the technical summary. Business hypotheses and planned features remain distinct from implemented behavior and recorded test results.
+Only the pitch deck is a PDF. Value, ICP, Metrics and GTM are Markdown for the submission fields; Demo uses links. Business hypotheses and planned features remain distinct from implemented behavior and recorded test results.
 
 ## Repository layout
 
@@ -94,6 +94,11 @@ The frontend's current messaging path uses the Canton transport. Memory/HTTP rel
 
 ## Next
 
-Complete the current wallet-connected Canton workflow with separate users, then validate real freelance deals with a small pilot. Marketplace publishing follows that validation. Points and optional VIP membership remain product proposals; multichain comes after the Canton experience is established.
+Complete the current wallet-connected Canton workflow with separate users, then validate direct digital-service deals with a small pilot. Marketplace publishing follows that validation.
+
+**Commercial plan — coming soon:** charge only for escrow/rekber at a proposed 0.5% (minimum USD 0.10). Optional individual VIP at USD 3/month would provide 2× qualifying points and a 20% escrow-rate discount: 0.4%, with the same minimum. Core room, chat and deal actions have no proposed separate VINSS application fee. Billing, points issuance and any possible airdrop are not implemented. See [GTM](docs/GTM.md).
+
+**Multichain is a later roadmap direction.** Establish the Canton workflow first, then add chain-specific wallet, privacy and settlement integrations according to user demand. The earlier Starknet repository is a separate implementation; this Canton application does not currently offer cross-chain rooms, bridging or atomic cross-chain settlement.
 
 Dispute/refund handling, cross-device recovery and group escrow are not implemented. See the [pilot plan](docs/PILOT_PLAN.md) before treating the current release as a production payment service.
+

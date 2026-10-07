@@ -1,58 +1,48 @@
-# VINSS - ICP / Audience
+# ICP — VINSS
 
-## People who already have a client
+## 1. Who they are
 
-The first audience is independent freelancers and their direct clients. VINSS can provide value to a pair before the marketplace has a large supply of jobs.
+**Initial segment hypothesis:** independent crypto wallet users buying or selling a clearly scoped digital service directly with a new counterparty—for example, a small design or development deliverable arranged in a builder community.
 
-## Primary user: the independent freelancer
-
-A developer, designer or writer agrees on a defined piece of work with someone they already know through a referral or community. The trigger is a new paid task: they need to state the scope, confirm funding and manage delivery without losing the agreement inside a long chat.
-
-The freelancer is a likely initiator because they can create the room and invite the client. The benefit to test is a clearer path from an accepted offer to a completed payment.
-
-## Counterparty: the client buying the work
-
-A founder, creator or small team hires someone for a specific deliverable. The client needs to understand what the offer includes, see the submitted work and know what approval authorizes. A successful experience must make the client comfortable joining a room even when they have never used VINSS before.
-
-| User | Reason to use VINSS | Decision to observe |
-| --- | --- | --- |
-| Freelancer | Keep the scope, funding and delivery decision together. | Will they invite a client and use it for another task? |
-| Client | Review work against the accepted offer before settlement. | Can they join, fund and review without technical help? |
-| Repeat user / small team | Reuse common offer terms and retain useful deal records. | Which proposed VIP capability is worth paying for? |
-
-## Audience status
-
-These are target-user hypotheses. The repository does not record completed customer interviews, paying users or retention results.
-
-## A pilot with clear recruitment criteria
-
-Recruit 3-5 client-freelancer pairs for a controlled exercise with test tokens. Observe both people, because one successful wallet connection does not complete a deal.
-
-| Suitable for the first cohort | Outside the first cohort |
+| | Initial profile |
 | --- | --- |
-| One agreed digital deliverable and an identifiable reviewer. | Open-ended work with unclear approval conditions. |
-| Both participants can use compatible Canton wallets. | Users who require another chain or fiat payment. |
-| Both can attend onboarding and describe failures. | High-value work that already needs arbitration or staged refunds. |
-| A willingness to try a second small task after the first. | Teams requiring multi-party escrow or organization-wide controls. |
+| Segment | Direct, person-to-person digital work negotiated through community or private messages. |
+| Company size / stage | Individuals and very small teams; a buyer can approve the task without a procurement department. |
+| User | Both the buyer/payer who reviews delivery and the seller/fulfiller who supplies it. |
+| Buyer | The person choosing to fund the deal would pay the proposed escrow fee. An individual chooses and pays for optional VIP membership. Neither is billed in the current MVP. |
+| Geography | Initial recruitment in Indonesian and English-speaking builder communities; this is an outreach focus, not a claim of active international customers. |
 
-## Questions before the first transaction
+VINSS is a private deal-room product. Freelance work is the first validation use case because scope and acceptance criteria can be written down and the outcome can be observed within a short pilot.
 
-Ask where they negotiate, how they confirm funding and what happens when the scope changes. Collect a recent example. Identify who proposes terms, pays and approves delivery.
+## 2. Their pain
 
-## What to observe during and after the task
+- **Top pain:** “I need to know what we agreed and what must happen before payment is released.” This expresses the product hypothesis; it is not a customer quotation.
+- **Frequency:** at every new direct deal, especially the first transaction with a counterparty. Actual frequency per user is not yet measured.
+- **Cost:** manual checking and exposure to paying or delivering first. We have not collected reliable time-loss or money-loss figures.
+- **Current workaround:** messages, a separate wallet transfer, screenshots and, where available, a trusted middleman or an existing marketplace. These alternatives must be explored in interviews rather than assumed to be inadequate for everyone.
 
-Record whether the invite works without manual peer IDs, whether both people describe the accepted terms the same way, and whether they distinguish funded escrow from an accepted offer. After settlement, ask what was confusing, what felt useful and whether they would bring their next counterparty.
+## 3. What they want
 
-## Who might pay for VIP
+**Job to be done:** “When I arrange a digital task with someone I have not traded with before, I want us to agree on the scope and payment conditions in one place, so I can see what is ready and what still needs approval.”
 
-Repeat freelancers and small teams are the proposed subscription customers. Test reusable offer templates, deal exports and additional listings as separate benefits. Ask which recurring task each benefit saves before deciding pricing or implementing billing.
+**Switching trigger:** a new deal where neither person wants an unconditional transfer or delivery first. An invite should let them bring their existing counterparty into the process.
 
-## Recruitment channels to test
+**What could stop them:** unfamiliar Canton wallets, connection failures, unclear funding status, an extra onboarding step for the other person, and the current absence of dispute/refund handling. For repeat users, the proposed fee must be worth the coordination saved.
 
-Direct outreach through freelancer communities and Canton builder contacts. These are proposed channels; no distribution partnership is claimed.
+## 4. Where to find them
 
-## Sources
+Recruit through the HackCanton builder community and approach DevWeb3Jogja and Blockchain Pioneer Student Club for permission to invite suitable volunteers. These are outreach candidates listed in the event materials—not partners, customers or confirmed distribution agreements.
 
-- [Pilot sequence](PILOT_PLAN.md)
-- [Business positioning](BUSINESS_BRIEF.md)
-- [Current membership preview](../frontend/app/rewards/page.tsx)
+The initial interview should establish which tools each person actually uses. Likely channels to investigate are Telegram, Discord, direct messages, GitHub and crypto wallets. Do not assume that every member of these communities has our problem.
+
+**Three real prospective customers:** not yet identified in the supplied evidence. Before claiming customer validation, recruit three distinct people who can describe a recent direct deal; record their role, date, existing process and specific reason to try or reject VINSS. Do not substitute community names for interviews.
+
+## 5. Who is not our customer for now
+
+- Large organizations needing procurement, compliance and enterprise integration before a pilot.
+- Users who require chargebacks, formal arbitration or a guaranteed refund path in the current Canton MVP.
+- Physical-goods transactions requiring logistics, inspection and dispute handling.
+- Complex NFT or token swaps requiring delivery verification beyond the implemented agreement workflow.
+- Groups needing multi-party escrow; the current group feature is encrypted conversation.
+
+The offer templates cover broader transaction categories, but a template does not prove that every category has a complete settlement and dispute workflow. We will expand only after the first segment completes and repeats real deals.
