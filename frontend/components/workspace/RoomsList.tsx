@@ -44,7 +44,11 @@ export function RoomsList({ compact = false }: { compact?: boolean }) {
               </span>
               <div className="room-copy">
                 <h3>{r.title}</h3>
-                <small>{shortId(r.peerParty)} · Private room</small>
+                <small>
+                  {r.kind === "group"
+                    ? "Encrypted group"
+                    : `${shortId(r.peerParty)} · Private room`}
+                </small>
               </div>
               <Icon name="arrow" />
             </Link>

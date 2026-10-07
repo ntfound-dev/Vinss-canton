@@ -12,12 +12,15 @@ import {
   registerInvite,
   resolveInvite,
   saveInvite,
+  groupBookmark,
   type PrivateInvite,
 } from "@/lib/canton-invite";
+import { InviteQr } from "./InviteQr";
 import { rememberRoom, roomUrl, shortId } from "@/lib/workspace";
 export function InvitePanel({ creating = false }: { creating?: boolean }) {
   const router = useRouter(),
     { session, connect, busy: walletBusy } = useWallet();
+  const [kind, setKind] = useState<"private" | "group">("private");
   const [invite, setInvite] = useState<PrivateInvite | null>(null),
     [title, setTitle] = useState(""),
     [error, setError] = useState(""),
@@ -36,11 +39,12 @@ export function InvitePanel({ creating = false }: { creating?: boolean }) {
     }
   }, [creating]);
   const owner = Boolean(session && invite?.host === session.partyId);
+  const group = invite?.kind === "group" || (!invite && kind === "group");
   useEffect(() => {
     if (invite) setUrl(`${location.origin}/invite#${encodeInvite(invite)}`);
   }, [invite]);
   useEffect(() => {
-    if (!invite || !session || !owner) return;
+    if (!invite || !session || !owner || invite.kind === "group") return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     async function poll() {
@@ -68,8 +72,14 @@ export function InvitePanel({ creating = false }: { creating?: boolean }) {
   async function create() {
     if (!session) return;
     try {
-      const next = makeInvite(session.partyId, title);
+      const next = makeInvite(
+        session.partyId,
+        title,
+        kind === "group" ? "group" : undefined,
+      );
       saveInvite(next);
+      if (next.kind === "group")
+        rememberRoom(session.partyId, groupBookmark(next, true));
       setInvite(next);
       setError("");
     } catch (e) {
@@ -105,12 +115,18 @@ export function InvitePanel({ creating = false }: { creating?: boolean }) {
     <div className="narrow">
       <div className="page-heading">
         <div>
-          <p className="eyebrow">PRIVATE INVITE</p>
+          <p className="eyebrow">
+            {invite?.kind === "group" || (!invite && kind === "group")
+              ? "GROUP INVITE"
+              : "PRIVATE INVITE"}
+          </p>
           <h1 style={{ marginTop: 10 }}>
             {owner
               ? "Invite link ready."
               : creating
-                ? "Start a private deal."
+                ? kind === "group"
+                  ? "Invite your group."
+                  : "Start a private deal."
                 : "You’re invited."}
           </h1>
         </div>
@@ -127,9 +143,37 @@ export function InvitePanel({ creating = false }: { creating?: boolean }) {
         {!invite && creating && (
           <>
             <p className="muted">
-              Create a link for your client or freelancer. Chat and agree on an
-              offer in one private room.
+              {kind === "group"
+                ? "Create one link for your group. Each guest connects a Canton wallet to join the encrypted conversation."
+                : "Create a link for your client or freelancer. Chat and agree on an offer in one private room."}
             </p>
+            <fieldset className="invite-kind">
+              <legend>Conversation type</legend>
+              <label>
+                <input
+                  type="radio"
+                  name="invite-kind"
+                  checked={kind === "private"}
+                  onChange={() => setKind("private")}
+                />
+                <span>
+                  <strong>Private deal</strong>
+                  <small>Two people · chat, offer, escrow</small>
+                </span>
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="invite-kind"
+                  checked={kind === "group"}
+                  onChange={() => setKind("group")}
+                />
+                <span>
+                  <strong>Group chat</strong>
+                  <small>Multiple people · encrypted messages</small>
+                </span>
+              </label>
+            </fieldset>
             <label className="field">
               Conversation name{" "}
               <input
@@ -150,8 +194,12 @@ export function InvitePanel({ creating = false }: { creating?: boolean }) {
             </div>
             <p className="muted">
               {owner
-                ? "Share this link with one person. This page will open your room when they join."
-                : "Connect your Canton wallet to join this private conversation."}
+                ? invite.kind === "group"
+                  ? "Share this link or QR with your group. Open the group to admit guests automatically."
+                  : "Share this link or QR with one person. This page opens your room when they join."
+                : invite.kind === "group"
+                  ? "Connect your Canton wallet to join this encrypted group."
+                  : "Connect your Canton wallet to join this private conversation."}
             </p>
           </>
         )}
@@ -167,7 +215,7 @@ export function InvitePanel({ creating = false }: { creating?: boolean }) {
         ) : !invite && creating ? (
           <button className="ui-button primary" onClick={() => void create()}>
             <Icon name="link" />
-            Create private invite
+            {kind === "group" ? "Create group invite" : "Create private invite"}
           </button>
         ) : invite && !owner ? (
           <button
@@ -176,7 +224,11 @@ export function InvitePanel({ creating = false }: { creating?: boolean }) {
             onClick={() => void join()}
           >
             <Icon name="chat" />
-            {busy ? "Preparing your room…" : "Join private room"}
+            {busy
+              ? "Preparing your room…"
+              : invite.kind === "group"
+                ? "Join group"
+                : "Join private room"}
           </button>
         ) : null}
         {owner && (
@@ -195,15 +247,28 @@ export function InvitePanel({ creating = false }: { creating?: boolean }) {
               <Icon name={copied ? "check" : "copy"} />
               {copied ? "Link copied" : "Copy invite link"}
             </button>
-            <div className="ui-alert info" role="status">
-              Waiting for your guest. Keep this page open, or return from Home.
-            </div>
+            <InviteQr url={url} />
+            {invite?.kind === "group" ? (
+              <Link
+                className="ui-button primary"
+                href={roomUrl(groupBookmark(invite, true))}
+              >
+                <Icon name="chat" /> Open group & admit guests
+              </Link>
+            ) : (
+              <div className="ui-alert info" role="status">
+                Waiting for your guest. Keep this page open, or return from
+                Home.
+              </div>
+            )}
           </>
         )}
         {invite && (
           <p className="small muted">
             Expires {new Date(invite.expires).toLocaleString()}. Share only with
-            the person you want to invite.
+            {invite.kind === "group"
+              ? " the members you want to invite."
+              : " the person you want to invite."}
           </p>
         )}
         <div className="invite-steps">
@@ -217,19 +282,34 @@ export function InvitePanel({ creating = false }: { creating?: boolean }) {
           <div className="invite-step">
             <span className="step-number">2</span>
             <div>
-              <h3>Join the conversation</h3>
+              <h3>
+                {creating
+                  ? "Create and share your invite"
+                  : "Join the conversation"}
+              </h3>
               <p>
-                Approve the connection request in your wallet. VINSS prepares
-                the private session.
+                {creating
+                  ? "Copy the link or download its QR. Guests open it and connect their Canton wallets."
+                  : "Approve the connection request in your wallet. VINSS prepares the encrypted session."}
               </p>
             </div>
           </div>
           <div className="invite-step">
             <span className="step-number">3</span>
             <div>
-              <h3>Create an offer when ready</h3>
+              <h3>
+                {group
+                  ? creating || owner
+                    ? "Open your group"
+                    : "Chat with your group"
+                  : "Create an offer when ready"}
+              </h3>
               <p>
-                Create an offer when you’re ready. Joining does not fund a deal.
+                {group
+                  ? creating || owner
+                    ? "Keep the group open to admit guests. Start chatting when members arrive."
+                    : "The creator admits you with an MLS Welcome. Messages become available when the group is ready."
+                  : "Review the terms together, then submit your offer from the private room."}
               </p>
             </div>
           </div>

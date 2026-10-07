@@ -14,6 +14,7 @@ export interface PrivateInvite {
   network: string;
   expires: number;
   title: string;
+  kind?: "group";
 }
 const UUID = /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i;
 export const REQUEST_TEMPLATE =
@@ -42,9 +43,11 @@ export function installationFor(userId: string): string {
 export function makeInvite(
   host: string,
   title = "Private conversation",
+  kind?: "group",
 ): PrivateInvite {
   return {
     v: 1,
+    ...(kind ? { kind } : {}),
     id: crypto.randomUUID(),
     secret: crypto.randomUUID(),
     host,
@@ -83,7 +86,10 @@ export function decodeInvite(
     throw new Error("This invite link is not valid.");
   }
   if (
+    !value ||
+    typeof value !== "object" ||
     value.v !== 1 ||
+    (value.kind !== undefined && value.kind !== "group") ||
     !UUID.test(value.id) ||
     !UUID.test(value.secret) ||
     !UUID.test(value.installation) ||
@@ -112,7 +118,7 @@ export async function inviteRequestId(invite: PrivateInvite): Promise<string> {
   );
   return `vinss-invite:v1:${Array.from(new Uint8Array(bytes), (v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
-export function findInvitePeer(
+export function findInvitePeers(
   contracts: readonly CantonCreatedContract[],
   requestId: string,
   host: string,
@@ -135,14 +141,25 @@ export function findInvitePeer(
         ? 1
         : a.contractId.localeCompare(b.contractId),
   );
-  const first = matches[0];
-  return first
-    ? {
-        party: first.createArgument.requester as string,
-        installation: first.createArgument.installationId as string,
-      }
-    : undefined;
+  const parties = new Set<string>(),
+    installations = new Set<string>();
+  return matches.flatMap((c) => {
+    const party = c.createArgument.requester as string,
+      installation = c.createArgument.installationId as string;
+    if (parties.has(party) || installations.has(installation)) return [];
+    parties.add(party);
+    installations.add(installation);
+    return [{ party, installation }];
+  });
 }
+export function findInvitePeer(
+  contracts: readonly CantonCreatedContract[],
+  requestId: string,
+  host: string,
+) {
+  return findInvitePeers(contracts, requestId, host)[0];
+}
+
 export async function registerInvite(
   ledger: CantonLedgerClient,
   invite: PrivateInvite,
@@ -157,7 +174,12 @@ export async function registerInvite(
   const installation = installationFor(identity.userId),
     requestId = await inviteRequestId(invite);
   const contracts = await ledger.queryActiveContracts(party);
-  const existing = findInvitePeer(contracts, requestId, invite.host);
+  const existing =
+    invite.kind === "group"
+      ? findInvitePeers(contracts, requestId, invite.host).find(
+          (p) => p.party === party,
+        )
+      : findInvitePeer(contracts, requestId, invite.host);
   if (
     existing &&
     (existing.party !== party || existing.installation !== installation)
@@ -183,6 +205,8 @@ export async function registerInvite(
     });
   return {
     id: invite.id,
+    bindingRequestId: requestId,
+    ...(invite.kind ? { kind: invite.kind } : {}),
     title: invite.title,
     peerParty: invite.host,
     peerInstallation: invite.installation,
@@ -212,6 +236,7 @@ export async function resolveInvite(
   return peer
     ? {
         id: invite.id,
+        bindingRequestId: await inviteRequestId(invite),
         title: invite.title,
         peerParty: peer.party,
         peerInstallation: peer.installation,
@@ -240,4 +265,19 @@ export function ownInvites(party: string): PrivateInvite[] {
     }
   }
   return items.sort((a, b) => b.expires - a.expires);
+}
+
+export function groupBookmark(
+  invite: PrivateInvite,
+  creator: boolean,
+): RoomBookmark {
+  return {
+    id: invite.id,
+    title: invite.title,
+    kind: "group",
+    peerParty: invite.host,
+    peerInstallation: invite.installation,
+    creator,
+    updatedAt: Date.now(),
+  };
 }

@@ -1,3 +1,5 @@
+import { IndexedDbPlaintextStore } from "../../src/messaging/local/plaintext-store.js";
+import { cantonNetwork } from "./workspace";
 import { installationFor } from "./canton-invite";
 import initOpenMls, * as openMlsModule from "./openmls/vinss_mls.js";
 
@@ -293,6 +295,7 @@ export interface CantonRoomInput {
   peerParty: string;
 
   peerInstallationId: string;
+  bindingRequestId?: string;
 
   creator: boolean;
 
@@ -309,7 +312,7 @@ export interface CantonRoomInput {
 
 let wasm: Promise<OpenMlsWasmModule> | undefined;
 
-function loadOpenMls(): Promise<OpenMlsWasmModule> {
+export function loadOpenMls(): Promise<OpenMlsWasmModule> {
   if (!wasm) {
     wasm = initOpenMls().then(
       () => openMlsModule as unknown as OpenMlsWasmModule,
@@ -321,6 +324,12 @@ function loadOpenMls(): Promise<OpenMlsWasmModule> {
 
 export class CantonRoomRuntime {
   #subscription: CantonUpdateSubscription | undefined;
+  #queue: Promise<unknown> = Promise.resolve();
+  private serialize<T>(work: () => Promise<T>): Promise<T> {
+    const next = this.#queue.then(work, work);
+    this.#queue = next.catch(() => {});
+    return next;
+  }
 
   private constructor(
     private readonly input: CantonRoomInput,
@@ -397,9 +406,55 @@ export class CantonRoomRuntime {
 
     const bridge = new BrowserOpenMlsBridge(loadOpenMls, checkpoint);
 
-    const transport = new CantonMessagingTransport(ledger, directory);
+    const transport = new CantonMessagingTransport(
+      ledger,
+      directory,
+      async (id) => {
+        if (id === installationId) return directory.activeParty();
+        if (id === input.peerInstallationId) return input.peerParty;
+        throw new Error("Unknown private-room sender installation");
+      },
+      async () => {
+        if (!input.bindingRequestId) return undefined;
+        const requests = (
+          await ledger.queryActiveContracts(directory.activeParty())
+        )
+          .filter(
+            (c) =>
+              c.templateId.endsWith(":Vinss.Messaging:KeyPackageRequest") &&
+              c.createArgument.requestId === input.bindingRequestId &&
+              ((c.createArgument.requester === directory.activeParty() &&
+                c.createArgument.recipient === input.peerParty) ||
+                (c.createArgument.requester === input.peerParty &&
+                  c.createArgument.recipient === directory.activeParty())),
+          )
+          .sort((a, b) =>
+            a.offset < b.offset ? -1 : a.offset > b.offset ? 1 : 0,
+          );
+        if (!requests[0])
+          throw new Error("Room installation registration is missing");
+        return requests[0].offset;
+      },
+    );
 
-    const provider = new OpenMlsMessagingProvider(bridge, transport);
+    const history = new IndexedDbPlaintextStore(
+      JSON.stringify([
+        cantonNetwork(),
+        directory.activeParty(),
+        installationId,
+      ]),
+    );
+    const provider = new OpenMlsMessagingProvider(
+      bridge,
+      transport,
+      undefined,
+      {
+        history,
+        groupStateSender: input.creator
+          ? installationId
+          : input.peerInstallationId,
+      },
+    );
 
     const encoder = new TextEncoder();
 
@@ -414,7 +469,7 @@ export class CantonRoomRuntime {
     await provider.initialize(identity);
 
     const peerMember = {
-      userId: input.peerParty,
+      userId: `wallet:${input.peerParty}`,
 
       installationId: input.peerInstallationId,
 
@@ -423,8 +478,17 @@ export class CantonRoomRuntime {
       credential: encoder.encode(input.peerParty),
     };
 
+    let synchronize = (id: string, cursor?: string) =>
+      provider.sync(id, cursor);
     const live = new CantonLiveMessagingSession(
-      provider,
+      {
+        initialize: provider.initialize.bind(provider),
+        createGroup: provider.createGroup.bind(provider),
+        addMembers: provider.addMembers.bind(provider),
+        removeMembers: provider.removeMembers.bind(provider),
+        send: provider.send.bind(provider),
+        sync: (id, cursor) => synchronize(id, cursor),
+      },
 
       new CantonPollingUpdateStream({
         ledger,
@@ -434,7 +498,12 @@ export class CantonRoomRuntime {
       directory,
       installationId,
 
-      new BrowserCantonLiveStateStore(window.localStorage),
+      new BrowserCantonLiveStateStore(
+        window.localStorage,
+        `vinss-canton:${cantonNetwork()}:${input.conversationId}`,
+        "vinss-canton",
+      ),
+      (id) => id === input.conversationId,
     );
 
     const offerProvider = new HttpCantonOfferProvider(ledger);
@@ -462,58 +531,68 @@ export class CantonRoomRuntime {
       directory.activeParty(),
     );
 
-    await runtime.prepare();
+    synchronize = (id, cursor) =>
+      runtime.serialize(() => provider.sync(id, cursor));
+    await runtime.serialize(() => runtime.prepare());
 
+    const consume = async (
+      conversationId: string,
+      messages: readonly PlainMessage[],
+    ) => {
+      if (conversationId !== input.conversationId) {
+        return;
+      }
+
+      const visible = messages
+        .map((message) => toRoomMessage(message, installationId))
+        .filter(
+          (message): message is CantonRoomMessage => message !== undefined,
+        );
+
+      if (visible.length > 0) {
+        input.onMessages(visible);
+      }
+
+      const offers: CantonRoomOffer[] = [];
+
+      const actions: CantonRoomDealAction[] = [];
+
+      for (const message of messages) {
+        const offer = await toRoomOffer(
+          message,
+          installationId,
+          directory.activeParty(),
+          input.peerParty,
+        );
+
+        if (offer) {
+          offers.push(offer);
+        }
+
+        const action = toRoomDealAction(message);
+
+        if (action) {
+          actions.push(action);
+        }
+      }
+
+      if (offers.length > 0) {
+        input.onOffers?.(offers);
+      }
+
+      if (actions.length > 0) {
+        input.onDealActions?.(actions);
+      }
+    };
+    await consume(
+      input.conversationId,
+      await history.list(input.conversationId),
+    );
     runtime.#subscription = await live.start({
-      async onMessages(conversationId, messages) {
-        if (conversationId !== input.conversationId) {
-          return;
-        }
-
-        const visible = messages
-          .map((message) => toRoomMessage(message, installationId))
-          .filter(
-            (message): message is CantonRoomMessage => message !== undefined,
-          );
-
-        if (visible.length > 0) {
-          input.onMessages(visible);
-        }
-
-        const offers: CantonRoomOffer[] = [];
-
-        const actions: CantonRoomDealAction[] = [];
-
-        for (const message of messages) {
-          const offer = await toRoomOffer(
-            message,
-            installationId,
-            directory.activeParty(),
-            input.peerParty,
-          );
-
-          if (offer) {
-            offers.push(offer);
-          }
-
-          const action = toRoomDealAction(message);
-
-          if (action) {
-            actions.push(action);
-          }
-        }
-
-        if (offers.length > 0) {
-          input.onOffers?.(offers);
-        }
-
-        if (actions.length > 0) {
-          input.onDealActions?.(actions);
-        }
-      },
-
+      onMessages: consume,
       async onLedgerOffset() {
-        await runtime.refreshStatus();
+        if (input.creator) await runtime.serialize(() => runtime.prepare());
+        else await runtime.refreshStatus();
       },
 
       onError: input.onError,
@@ -529,7 +608,7 @@ export class CantonRoomRuntime {
       return;
     }
 
-    await this.prepare();
+    await this.serialize(() => this.prepare());
   }
 
   async sendText(text: string): Promise<CantonRoomMessage> {
@@ -559,7 +638,7 @@ export class CantonRoomRuntime {
       },
     };
 
-    await this.provider.send(message);
+    await this.serialize(() => this.provider.send(message));
 
     return {
       id: message.id,
@@ -679,7 +758,7 @@ export class CantonRoomRuntime {
       },
     };
 
-    await this.provider.send(message);
+    await this.serialize(() => this.provider.send(message));
 
     return {
       dealId,
@@ -1018,7 +1097,7 @@ export class CantonRoomRuntime {
       },
     };
 
-    await this.provider.send(message);
+    await this.serialize(() => this.provider.send(message));
   }
 
   private async verifyOfferContract(offer: CantonRoomOffer): Promise<void> {

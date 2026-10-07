@@ -12,6 +12,8 @@ export interface RoomBookmark {
   creator: boolean;
   updatedAt: number;
   jobId?: string;
+  bindingRequestId?: string;
+  kind?: "group";
 }
 export function roomUrl(r: RoomBookmark) {
   const q = new URLSearchParams({
@@ -19,8 +21,9 @@ export function roomUrl(r: RoomBookmark) {
     peerInstallation: r.peerInstallation,
     mode: r.creator ? "creator" : "joiner",
   });
+  if (r.bindingRequestId) q.set("bindingRequest", r.bindingRequestId);
   if (r.jobId) q.set("job", r.jobId);
-  return `/room/${encodeURIComponent(r.id)}?${q}`;
+  return `/${r.kind === "group" ? "group" : "room"}/${encodeURIComponent(r.id)}?${q}`;
 }
 const roomKey = (p: string) => `vinss:rooms:v1:${cantonNetwork()}:${p}`;
 export function readRooms(p: string): RoomBookmark[] {

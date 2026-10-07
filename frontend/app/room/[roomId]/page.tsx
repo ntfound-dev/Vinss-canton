@@ -84,6 +84,9 @@ export default function RoomPage() {
       peerInstallationId: peerInstallation,
 
       creator,
+      ...(search.get("bindingRequest")
+        ? { bindingRequestId: search.get("bindingRequest")! }
+        : {}),
 
       onStatus(status) {
         if (!disposed) setStatus(status);

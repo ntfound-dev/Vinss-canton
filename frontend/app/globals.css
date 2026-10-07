@@ -2881,3 +2881,121 @@ h4 {
     scroll-behavior: auto !important;
   }
 }
+.invite-kind {
+  border: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.invite-kind legend {
+  font-size: 12px;
+  margin-bottom: 9px;
+  font-weight: 600;
+}
+.invite-kind label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+}
+.invite-kind label:has(input:checked) {
+  background: var(--ui-tint);
+  border-color: var(--ui-accent);
+}
+.invite-kind input {
+  accent-color: var(--ui-accent);
+  flex-shrink: 0;
+}
+.invite-kind strong {
+  display: block;
+  font-size: 12px;
+}
+.invite-kind small {
+  display: block;
+  font-size: 10px;
+  color: var(--ui-muted);
+  margin-top: 3px;
+}
+.invite-qr {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: 20px;
+  align-items: center;
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+  padding: 20px;
+  background: var(--ui-bg);
+}
+.invite-qr h3 {
+  font-size: 16px;
+  margin-top: 8px;
+}
+.invite-qr p {
+  font-size: 12px;
+  color: var(--ui-muted);
+  margin-top: 8px;
+}
+.invite-qr .ui-button {
+  font-size: 11px;
+  margin-top: 16px;
+}
+.qr-code-wrap {
+  background: white;
+  border-radius: 12px;
+  padding: 8px;
+  text-align: center;
+  min-width: 0;
+}
+.qr-code-wrap canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.qr-code-wrap .small {
+  color: #48695a;
+}
+.group-chat {
+  margin-top: 22px;
+}
+.group-sender {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ui-accent);
+  display: block;
+  margin-bottom: 4px;
+}
+.group-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+}
+.group-member > span:first-of-type {
+  flex: 1;
+  font-size: 12px;
+}
+@media (max-width: 700px) {
+  .invite-qr {
+    grid-template-columns: 1fr;
+    padding: 17px;
+  }
+  .qr-code-wrap {
+    max-width: 300px;
+    width: 100%;
+    justify-self: center;
+  }
+  .invite-kind {
+    grid-template-columns: 1fr;
+  }
+  .group-chat .chat-header > .badge {
+    font-size: 9px;
+  }
+  .group-chat .composer-actions > .small {
+    font-size: 9px;
+    max-width: 200px;
+  }
+}

@@ -43,6 +43,7 @@ export async function startJobConversation(
     creator: true,
     updatedAt: Date.now(),
     jobId: job.id,
+    bindingRequestId: `vinss-job:v1:${job.id}:${id}`,
   };
 }
 export function incomingJobRooms(
@@ -74,6 +75,7 @@ export function incomingJobRooms(
       creator: false,
       updatedAt: Date.now(),
       jobId: match[1],
+      bindingRequestId: a.requestId,
     });
   }
   return rows;

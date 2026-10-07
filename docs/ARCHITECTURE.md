@@ -1,141 +1,91 @@
-# VINSS Canton Architecture
+# VINSS Canton architecture
 
-## Trust boundaries
+This document maps the implemented Canton wallet, OpenMLS messaging, invitation, storage and escrow code to its trust boundaries. Start with the [README](../README.md) for the product and [Demo and evidence](SUBMISSION.md) for the walkthrough.
 
-### Browser
-Trusted with plaintext and MLS private state.
+## Runtime and trust boundaries
 
-Responsibilities:
-- create device/installation identity
-- generate MLS KeyPackages
-- process Welcome + Commit messages
-- encrypt outgoing application messages
-- decrypt incoming application messages
-- keep MLS group state encrypted at rest
+The frontend uses `frontend/lib/canton-dapp-ledger-client.ts` to route the HTTP ledger client through the connected Canton wallet SDK. Its local user identity is `wallet:<Party>`. The SDK's active primary Party must match the room wallet; authorization comes from the wallet/ledger, not from a URL.
 
-### VINSS Relay
-Untrusted for message confidentiality.
+`BrowserOpenMlsBridge` uses the bundled wasm-bindgen OpenMLS build in `frontend/lib/openmls/`. The Rust source lives in `wasm/vinss_mls/`. No custom encryption algorithm substitutes for MLS. Each browser installation creates its own MLS signing identity and KeyPackages; Canton wallet signing keys are separate.
 
-Allowed:
-- ciphertext
-- public delivery metadata
-- KeyPackages
-- MLS handshake payloads
-- cursors / sequencing
-- attachment ciphertext
+The browser is trusted with plaintext and MLS secrets. Canton transports ciphertext, signed KeyPackage advertisements, Welcome/Commit and visible metadata. Canton also stores canonical business records. The optional memory/HTTP relay implementations are core/test alternatives, not the frontend's current network path.
 
-Forbidden:
-- plaintext
-- MLS private key material
-- exported unencrypted group state
+## Storage, exactly
 
-### Canton
-Canonical business state only.
+| Store/code | Contents and scope |
+| --- | --- |
+| `IndexedDbPlaintextStore`, database `vinss-message-history` | Entire successfully sent/decrypted `PlainMessage`, including private offer terms/actions. Local plaintext history. Key uses network + active Party + installation + conversation + message ID. Includes processing markers for encrypted group-state envelopes. |
+| `IndexedDbOpenMlsCheckpointStore`, database `vinss-openmls` | Provider storage, identity and group/ratchet state, pending outbound membership changes and processed handshake IDs, keyed by installation. AES-GCM at rest with a stored non-exportable CryptoKey. |
+| `localStorage`, `vinss:installation:*` | Stable wallet-scoped installation IDs; preserves a prior advanced-form installation when not claimed by another wallet. |
+| `localStorage`, `vinss:invite:v1:*` | Creator's original invite descriptor/secret, network and Party scoped. |
+| `localStorage`, `vinss:rooms:v1:*` | Room navigation bookmarks only, network and Party scoped. |
+| `BrowserCantonLiveStateStore` | Ledger/message cursors, namespaced by network and active conversation, then Party/installation. |
 
-Examples:
-- DealProposal
-- DealAgreement
-- fulfillment proof/hash
-- dispute state
-- allocation/funding references
-- settlement
-- receipt
+Private room connect restores cached messages, offers and actions before live subscription. Group connect restores cached plaintext and the encrypted MLS checkpoint. Text and encrypted group-state replay use local message IDs/processing markers to avoid consuming the same MLS generation again.
 
-Do not write casual chat messages to Canton.
+The encrypted checkpoint and plaintext history use separate transactions/databases. They are **not atomic together**: a crash or storage error between MLS ratchet persistence and history persistence can still lose recoverability of that message. The code does not promise recovery after clearing, corrupting or rolling back site storage. Plaintext history is readable by code running on this origin and by someone with access to the browser profile; encryption of MLS checkpoints does not encrypt that history.
 
-## Escrow (Canton settlement rail)
+Local history applies to messages sent or decrypted after the history feature was installed. Messages already consumed by older releases without local history cannot be restored automatically from ledger ciphertext after their MLS generations have been deleted.
 
-A deal uses Canton escrow when its proposal names a `custodian`. Deals without
-one keep the original flow and have nothing to settle on Canton.
+## Invite binding and QR
 
-```text
-DealProposal --Accept--> DealAgreement --FundEscrow--> DealEscrow
-                                                          |
-                                             SubmitFundedFulfillment
-                                                          v
-                        RequestRevision <--- DealFulfillment ---Approve---> FulfillmentApproval
-                        (DealRevisionRequest --SubmitRevision--^)                   |
-                                                                                  Settle
-                                                                                    v
-                                                                          SettlementReceipt
-```
+`frontend/lib/canton-invite.ts` creates a version-1 descriptor with UUID conversation ID, random secret, host Party/installation, network, title and 24-hour expiry. `kind: "group"` distinguishes group invitations; existing private descriptors remain compatible.
 
-Roles and money flow:
-- The reviewer (who approves the work) is the payer and the fulfiller (who
-  delivers it) is the payee. With the default roles this is buyer -> seller and
-  it stays correct for swapped roles such as freelance offers.
-- The custodian holds the backing value off-ledger and is neither party.
-  It issues a `CashHolding` (an on-ledger acknowledgement, `Vinss.Custody`) to
-  the payer. The amount and instrument must match the deal exactly; holdings are
-  per-deal deposits, there is no split or merge.
-- `FundEscrow` locks that holding into a `LockedHolding` and creates the
-  `DealEscrow` in one transaction, so a deal is funded if and only if the
-  holding is locked.
-- `Settle` is claimed by the payee after approval. The release needs both the
-  payer's and the payee's authority: the payer's comes from having signed the
-  `FulfillmentApproval`, so funds can only move through an approved
-  fulfillment. Neither party can release alone.
+The URL is `/invite#<base64url descriptor>`. The fragment is not included in an ordinary HTTP request, but anyone with the full link/QR has the invitation capability. The URL is not cryptographically signed. Changing a descriptor does not authorize the holder as its host or resolve a forged Party: the creator's private invite flow also checks the exact descriptor saved in the original browser, and group admission uses the original saved descriptor.
 
-Privacy:
-- The custodian only sees holdings (payer, payee, amount, instrument, deal id).
-  It does not see deal terms hashes, fulfillment hashes or conversation ids.
-- Work details and chat stay in OpenMLS; Canton only carries hashes and state.
+Joining creates `Vinss.Messaging:KeyPackageRequest` with:
 
-Trust model and known gaps:
-- Holdings are custodian IOUs. As signatory the custodian can always archive
-  its own contracts, so both parties must agree on the custodian in the
-  proposal, and the custodian must really hold the backing value.
-- There is no on-ledger refund, dispute or fulfillment deadline yet. Funds stay
-  locked until the payer approves; anything else is a custodian decision made
-  off-ledger. This needs a product decision before real funds are used.
-- `DealFulfillment`, `DealRevisionRequest` and `FulfillmentApproval` are still
-  signed by a single party, as before. Co-signing them (seller and buyer) would
-  guarantee they can only be created through the workflow.
-- The UI does not use escrow yet: it never sets `custodian`, so deals created
-  from the frontend keep the original flow.
+- `requestId = vinss-invite:v1:<SHA-256(conversation ID + ':' + secret)>`
+- requester as Canton signatory, recipient as host observer, and the guest installation.
 
-## Group lifecycle
+This signed request supplies the creator's Party/installation binding. The messaging runtime publishes real KeyPackages as `KeyPackageOffer`; the authenticated directory verifies their signed owners and unexpired bindings before admitting a guest. New invite/job bookmarks carry the signed request ID to the room. Admission requires the peer KeyPackage advertisement to be newer than that registration, so an older single-use KeyPackage from another room is not selected during the join race. Private admission selects the earliest matching request. Advanced/manual legacy connections without a registration ID retain the original advertisement selection. Group admission deduplicates signed requests by Party and installation and limits the UI group to 32 members.
 
-```text
-installation creates KeyPackage
-          |
-          v
-creator creates MLS group (epoch N)
-          |
-          +---- Add member --> Commit + Welcome --> epoch N+1
-          |
-          +---- Remove member --> Commit ----------> epoch N+2
-          |
-          +---- application message encrypted under current epoch
-```
+`InviteQr.tsx` renders the exact link in the browser using `qrcode`, medium error correction, four-module quiet zone and a white background. It offers a 640-pixel PNG download. Over-capacity QR generation reports an error and leaves Copy link available. Scanning uses the phone camera; there is no in-app camera scanner or QRIS payment integration.
 
-## Typed content
+Expiry is checked by the client when joining/admitting; it is not a ledger-side invitation expiry rule. Existing admitted rooms can continue after invite expiry. Revocation, renewal, transfer of creator devices and recovery across devices are not implemented.
 
-VINSS messages are application payloads encrypted by MLS.
+## Canton messaging and ordering
 
-Generic:
-- text
-- reply
-- reaction
-- read receipt
-- attachment reference
+`CantonMessagingTransport` writes these templates from `daml/Vinss/Messaging.daml`:
 
-VINSS-specific:
-- deal proposal
-- deal action
+| Template | Authority/visibility | Payload |
+| --- | --- | --- |
+| `KeyPackageRequest` | Requester signatory, host recipient observer | Installation binding and hashed request ID |
+| `KeyPackageOffer` | Owner signatory, requester observer | Public MLS KeyPackage, installation, expiry |
+| `MlsDelivery` | Sender signatory, recipient observer | MLS Welcome or Commit bytes in base64 |
+| `EncryptedMessage` | Sender signatory, recipients observers | MLS application ciphertext in base64; public envelope metadata |
 
-`deal_action` is not itself ledger authorization. The UI must still require the user to authorize the Canton transaction.
+The frontend's Canton provider uses `fetchConversationEvents` to interleave Welcome, application ciphertext and Commit **in ledger order for the active conversation**. Processing all commits before older application messages can delete the needed generations; the delayed-reader integration scenario verifies the ordered path. Relay transports without that API retain the existing handshake-first path and are not the frontend Canton path.
 
-## Identity
+Frontend transports validate each event's signed Canton sender against the expected Party for its installation. Private rooms know the two bindings; groups start with the host and signed guest requests, then resolve existing member Parties from decrypted group metadata. Encrypted group-state payloads are accepted only from the configured creator installation. Message IDs, conversation IDs, installation IDs and epochs are checked against the encrypted payload/envelope. This is not an independent security audit or a promise of protection from a malicious admitted member changing their own application data.
 
-Do not reuse Canton signing keys as MLS encryption/signing identity by default.
+`CantonLiveMessagingSession` filters the active conversation and persists cursors only after delivery callbacks succeed. The wallet polling stream likewise advances its offset only after a successful batch callback and retries on processing errors. Private-room migration copies only an existing legacy per-room message cursor; it does not reuse the old global ledger offset or replay already-consumed old ciphertext. Room-scoped live offsets avoid a visit to one room causing another room's messages to be skipped.
 
-Maintain explicit mapping:
+## Groups and private rooms
 
-```text
-VINSS User
-  |- Canton Party ID
-  `- Messaging installations[]
-```
+`CantonRoomRuntime` serializes local MLS mutations/sync/send and retries creator admission when ledger updates arrive. It serves two-person chat/offer rooms at `/room/[roomId]`. `CantonGroupRuntime` serves `/group/[roomId]`, maintains a serial queue for local MLS mutation/sync/send, and checks pending signed registrations every five seconds. The host must keep the original group browser open to admit guests. Guest pages show Waiting until the host's real MLS Welcome and encrypted membership state arrive.
 
-This prevents one cryptographic domain from accidentally becoming a universal key.
+Membership metadata (title, roles, Party credentials and installation roster) travels as encrypted `group_state`. MLS add/remove operations rekey epochs. Core member removal is tested, but the group UI only supports admission, messaging and member display; it has no member-removal/ban interface, attachments or group escrow. Replies/reactions/receipts/attachments exist as typed core content, not a complete group UI.
+
+Multiple browser tabs or simultaneously active runtimes for the same installation do not have a cross-tab MLS write lock. Use one active room tab per installation for the demo. Device linking, durable pending-message outbox/reconciliation and offline delivery guarantees are not implemented; a successful submit followed by a local storage failure can leave an on-ledger message that the UI reported as failed. Retry sending can produce a new message ID. Canton transaction acknowledgements must be checked before assuming a message/offer succeeded.
+
+## Offers and escrow
+
+The frontend sends canonical private terms inside MLS `deal_proposal`; `Vinss.Deal:DealProposal` stores their hash, amount, instrument, Parties, expiry and optional `instrumentAdmin`. `deal_action` chat content reports workflow changes; it is not itself ledger authorization. UI actions use `HttpCantonOfferProvider` and verify the referenced proposal contract before acceptance.
+
+The implemented escrow uses Canton Token Standard (CIP-56), not the old custom `CashHolding`/custodian IOU model:
+
+1. Buyer accepts the proposal, creating `DealAgreement`.
+2. For an agreed registry `instrumentAdmin`, the payer/reviewer wallet creates a Token Standard Allocation. `FundEscrow` validates its instrument/admin, amount, payer/payee/executor and deal reference and creates `DealEscrow`.
+3. Fulfiller submits funded fulfillment; reviewer approves or requests revision.
+4. After approval, fulfiller exercises `FulfillmentApproval.Settle`. The contract exercises the standard Allocation's `Allocation_ExecuteTransfer`, then creates `SettlementReceipt` with receiver holding references.
+
+VINSS contracts reference the Allocation; VINSS does not custody funds. A proposal without `instrumentAdmin` has no Canton escrow to settle. CC registry admin/URLs must match the selected network. `acceptOffer` performs acceptance and allocation/funding as separate wallet steps, so an accepted agreement does not prove funding if the second step fails.
+
+`daml/Vinss/Deal.daml` has no dispute/arbitration or refund choice. There is no group deal settlement. Local tests cover provider/registry choices and the explicit demo UI; the separate DevNet runbook records an earlier real settlement, not proof of a fresh live run of the current release.
+
+## Marketplace and planned features
+
+Jobs currently come from validated `frontend/data/jobs.json`, with search/category/pagination via `/api/jobs`; this is not an open job-publishing backend. Each real application creates a signed `KeyPackageRequest` and a new private conversation. The job supplies an offer draft; submitting the actual offer still requires user action and wallet authorization.
+
+`?demo=1` sample jobs and `/demo` are explicitly labeled previews with no real settlement. Points and VIP are Coming soon. Multichain is planned. None are represented as already active.

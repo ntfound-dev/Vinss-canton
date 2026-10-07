@@ -154,7 +154,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                     item.href === "/"
                       ? path === "/"
                       : path.startsWith(item.href) ||
-                        (item.href === "/rooms" && path.startsWith("/room/"))
+                        (item.href === "/rooms" &&
+                          (path.startsWith("/room/") ||
+                            path.startsWith("/group/")))
                   )
                     ? "page"
                     : undefined

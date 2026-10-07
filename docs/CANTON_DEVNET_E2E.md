@@ -1,5 +1,7 @@
 # Canton DevNet E2E Escrow Runbook
 
+> Historical settlement evidence from 2026-10-06, separate from the current messaging verification. Current code architecture is described in [ARCHITECTURE.md](ARCHITECTURE.md); current messaging checks and the opt-in live runner are in [MESSAGING_E2E.md](MESSAGING_E2E.md).
+
 This document records the VINSS end-to-end escrow flow verified against the HackCanton shared Canton DevNet on **2026-10-06**.
 
 ```text
@@ -500,16 +502,6 @@ Cause: an old Amulet Holding CID was reused after wallet activity had consumed/r
 
 Fix: query the Holding interface again, select fresh unlocked holdings, then request a fresh AllocationFactory context and submit immediately.
 
-### Termux `/tmp` permission error
-
-Some Termux environments cannot write to `/tmp`.
-
-Use a repository-local or `$HOME` path instead, for example:
-
-```bash
-$HOME/vinss-canton/.cc-holdings.json
-```
-
 ### Deal has `instrumentAdmin: null`
 
 That is a non-escrow VINSS deal. `FundEscrow` intentionally rejects it.
@@ -524,7 +516,7 @@ instrumentAdmin = DSO::<...>
 ## Security and trust boundary
 
 - VINSS stores canonical deal state and hashes on Canton.
-- Private chat and work payloads stay in OpenMLS/private transport.
+- Private chat and work content is encrypted with OpenMLS; Canton messaging contracts carry ciphertext.
 - Canton Coin settlement uses the Canton Token Standard.
 - VINSS references a Token Standard Allocation; it does not custody user funds itself.
 - Authentication credentials are runtime secrets and must never be committed.

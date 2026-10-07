@@ -7,6 +7,7 @@ import type { CantonPartyId } from "../../canton/types.js";
 
 import type {
   MessagingTransport,
+  ConversationEvent,
   KeyPackageEnvelope,
   MlsHandshakeDelivery,
   MlsHandshakeEnvelope,
@@ -28,8 +29,81 @@ export class CantonMessagingTransport implements MessagingTransport {
   constructor(
     private readonly ledger: CantonLedgerClient,
     private readonly directory: CantonMessagingDirectory,
+    private readonly expectedSenderParty?: (
+      installationId: string,
+    ) => Promise<string>,
+    private readonly keyPackageMinimumOffset?: (
+      installationId: string,
+    ) => Promise<bigint | undefined>,
   ) {}
 
+  async verifyConversationEvent(event: ConversationEvent): Promise<void> {
+    if (
+      this.expectedSenderParty &&
+      event.senderParty !==
+        (await this.expectedSenderParty(event.senderInstallationId))
+    )
+      throw new Error("Canton event sender binding mismatch");
+  }
+  async fetchConversationEvents(
+    conversationId: string,
+    installationId: string,
+    cursor?: string,
+  ): Promise<{ items: readonly ConversationEvent[]; nextCursor?: string }> {
+    const party = this.directory.activeParty(),
+      after = parseCursor(cursor, "c");
+    const contracts = await this.ledger.queryCreatedContractsSince(
+      party,
+      after,
+    );
+    const items: ConversationEvent[] = [];
+    for (const contract of contracts) {
+      const args = contract.createArgument;
+      if (contract.offset <= after || args.channelId !== conversationId)
+        continue;
+      if (isCantonTemplate(contract.templateId, "MlsDelivery")) {
+        if (
+          args.recipient !== party ||
+          args.recipientInstallationId !== installationId
+        )
+          continue;
+        const kind = readString(args, "kind");
+        if (kind !== "welcome" && kind !== "commit")
+          throw new Error("Invalid Canton MLS delivery kind");
+        items.push({
+          id: readString(args, "deliveryId"),
+          conversationId,
+          sequence: contract.offset,
+          senderParty: readString(args, "sender"),
+          senderInstallationId: readString(args, "senderInstallationId"),
+          recipientInstallationId: installationId,
+          kind,
+          sentAt: readTimeMs(args, "createdAt"),
+          payload: base64ToBytes(readString(args, "payloadB64")),
+        });
+      } else if (isCantonTemplate(contract.templateId, "EncryptedMessage")) {
+        items.push({
+          id: readString(args, "messageId"),
+          conversationId,
+          sequence: contract.offset,
+          senderParty: readString(args, "sender"),
+          senderInstallationId: readString(args, "senderInstallationId"),
+          epoch: BigInt(readString(args, "epoch")),
+          sentAt: readTimeMs(args, "createdAt"),
+          payload: base64ToBytes(readString(args, "ciphertextB64")),
+        });
+      }
+    }
+    items.sort((a, b) =>
+      a.sequence < b.sequence
+        ? -1
+        : a.sequence > b.sequence
+          ? 1
+          : a.id.localeCompare(b.id),
+    );
+    const last = items.at(-1);
+    return { items, ...(last ? { nextCursor: `c:${last.sequence}` } : {}) };
+  }
   async publishKeyPackage(envelope: KeyPackageEnvelope): Promise<void> {
     const owner = this.directory.activeParty();
 
@@ -92,6 +166,9 @@ export class CantonMessagingTransport implements MessagingTransport {
       if (!wanted.has(installationId)) {
         continue;
       }
+
+      const minimum = await this.keyPackageMinimumOffset?.(installationId);
+      if (minimum !== undefined && contract.offset <= minimum) continue;
 
       // Only accept the KeyPackage signed by the Party bound to this installation.
       // A different Party can advertise the same Installation ID on the ledger.
@@ -281,6 +358,14 @@ export class CantonMessagingTransport implements MessagingTransport {
         continue;
       }
 
+      if (
+        this.expectedSenderParty &&
+        readString(args, "sender") !==
+          (await this.expectedSenderParty(
+            readString(args, "senderInstallationId"),
+          ))
+      )
+        throw new Error("Canton MLS delivery sender binding mismatch");
       const kind = readString(args, "kind");
 
       if (kind !== "commit" && kind !== "welcome") {
@@ -389,18 +474,28 @@ export class CantonMessagingTransport implements MessagingTransport {
         left.offset < right.offset ? -1 : left.offset > right.offset ? 1 : 0,
       );
 
-    const items = rows.map((contract): CiphertextEnvelope => {
-      const args = contract.createArgument;
+    const items = await Promise.all(
+      rows.map(async (contract): Promise<CiphertextEnvelope> => {
+        const args = contract.createArgument;
+        if (
+          this.expectedSenderParty &&
+          readString(args, "sender") !==
+            (await this.expectedSenderParty(
+              readString(args, "senderInstallationId"),
+            ))
+        )
+          throw new Error("Canton encrypted message sender binding mismatch");
 
-      return {
-        id: readString(args, "messageId"),
-        conversationId,
-        senderInstallationId: readString(args, "senderInstallationId"),
-        epoch: BigInt(readString(args, "epoch")),
-        sentAt: readTimeMs(args, "createdAt"),
-        payload: base64ToBytes(readString(args, "ciphertextB64")),
-      };
-    });
+        return {
+          id: readString(args, "messageId"),
+          conversationId,
+          senderInstallationId: readString(args, "senderInstallationId"),
+          epoch: BigInt(readString(args, "epoch")),
+          sentAt: readTimeMs(args, "createdAt"),
+          payload: base64ToBytes(readString(args, "ciphertextB64")),
+        };
+      }),
+    );
 
     const last = rows.at(-1);
 
