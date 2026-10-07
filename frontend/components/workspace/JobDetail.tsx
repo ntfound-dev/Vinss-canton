@@ -69,6 +69,7 @@ export function JobDetail() {
       setBusy(false);
     }
   }
+  const preview = demo || Boolean(job?.demo);
   if (loading) return <div className="loading">Loading job details…</div>;
   if (!job)
     return (
@@ -82,10 +83,10 @@ export function JobDetail() {
     );
   return (
     <>
-      <Link className="text-link" href={demo ? "/jobs?demo=1" : "/jobs"}>
+      <Link className="text-link" href="/jobs">
         ← Back to jobs
       </Link>
-      {demo && (
+      {preview && (
         <div className="ui-alert info" style={{ marginTop: 20 }}>
           Sample job · product walkthrough only. No application or payment is
           submitted.
@@ -140,7 +141,7 @@ export function JobDetail() {
               {error}
             </p>
           )}
-          {demo ? (
+          {preview ? (
             <Link className="ui-button primary" href={`/demo?job=${job.id}`}>
               Preview private deal
               <Icon name="arrow" />

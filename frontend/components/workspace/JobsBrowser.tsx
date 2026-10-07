@@ -58,6 +58,7 @@ export function JobsBrowser() {
       controller.abort();
     };
   }, [q, category, page, demo, retry]);
+  const hasPreviewListings = data.items.some((job) => job.demo);
   return (
     <>
       <div className="page-heading">
@@ -82,6 +83,15 @@ export function JobsBrowser() {
           </Link>
         </div>
       )}
+      {!demo && hasPreviewListings && (
+        <div className="ui-alert info">
+          Preview catalogue · Sample listings are shown while the live
+          marketplace is onboarding publishers.
+          <Link href="/invite/new" className="text-link">
+            Start a private deal
+          </Link>
+        </div>
+      )}
       <div className="toolbar">
         <label className="search-box">
           <Icon name="search" />
@@ -99,7 +109,7 @@ export function JobsBrowser() {
         <span className="small muted" role="status">
           {loading
             ? "Loading…"
-            : `${data.total} ${demo ? "sample jobs" : "open jobs"}`}
+            : `${data.total} ${demo ? "sample jobs" : "market listings"}`}
         </span>
       </div>
       <div className="filter-chips" aria-label="Job categories">
@@ -135,7 +145,7 @@ export function JobsBrowser() {
               className="surface job-card"
               data-category={j.category}
               key={j.id}
-              href={`/jobs/${encodeURIComponent(j.id)}${demo ? "?demo=1" : ""}`}
+              href={`/jobs/${encodeURIComponent(j.id)}${j.demo ? "?demo=1" : ""}`}
             >
               <div className="job-top">
                 <span className="avatar">

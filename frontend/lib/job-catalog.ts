@@ -148,11 +148,11 @@ const examples = [
   ],
 ];
 export function catalog(demo = false): JobListing[] {
-  if (!demo)
-    return (published as unknown[])
+  const live = (published as unknown[])
       .filter(validJob)
       .filter((j) => j.network === cantonNetwork() && !j.demo);
-  return examples.map((r, i) => ({
+
+  const samples = examples.map((r, i) => ({
     id: `sample-${i + 1}`,
     category: r[0],
     title: r[1],
@@ -168,4 +168,9 @@ export function catalog(demo = false): JobListing[] {
     createdAt: new Date(Date.UTC(2026, 9, 6, 12, i)).toISOString(),
     demo: true,
   }));
+
+  // Keep the marketplace useful before publishers are onboarded, while
+  // preserving an explicit demo marker so sample listings can never create a
+  // real Canton conversation or be mistaken for traction.
+  return demo ? samples : [...live, ...samples];
 }
