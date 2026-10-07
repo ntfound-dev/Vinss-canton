@@ -1,5 +1,11 @@
 module Vinss.Deal where
 
+-- VINSS Deal & Escrow (Rekber)
+-- Offers, agreements, allocation-backed funding, delivery, revision,
+-- approval and settlement receipts share this module.
+-- Escrow contracts: DealEscrow, FulfillmentApproval, SettlementReceipt.
+-- Full contract map and workflow: docs/ESCROW.md; module index: daml/README.md.
+
 import DA.Text qualified as Text
 import DA.TextMap qualified as TextMap
 import Splice.Api.Token.MetadataV1 qualified as Meta
@@ -241,8 +247,9 @@ template DealAgreement
               fundedAt = now
 
 
--- Funded deal: the payer's CC is locked in the referenced Allocation and
--- cannot move without an approved fulfillment (see FulfillmentApproval.Settle).
+-- Funded deal: references the payer's token Allocation.
+-- VINSS's settlement path requires approved fulfillment; any other Allocation
+-- actions remain governed by the underlying token implementation.
 template DealEscrow
   with
     dealId : Text
@@ -476,8 +483,8 @@ template FulfillmentApproval
     -- Authorization: Allocation_ExecuteTransfer needs sender (reviewer),
     -- receiver (fulfiller) and executor (fulfiller, see FundEscrow). The
     -- fulfiller supplies their own as controller here; the reviewer's was
-    -- already given when they signed this FulfillmentApproval, so CC can
-    -- only move through an approved fulfillment.
+    -- already given when they signed this FulfillmentApproval. This VINSS
+    -- settlement path therefore requires an approved fulfillment.
     choice Settle : ContractId SettlementReceipt
       with
         extraArgs : Meta.ExtraArgs

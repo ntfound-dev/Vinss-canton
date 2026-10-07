@@ -54,7 +54,7 @@ Leave wallet confirmations and actual waiting time visible. If the network or au
 | MLS encryption and synchronization | [provider.ts](../src/messaging/openmls/provider.ts), [Rust OpenMLS source](../wasm/vinss_mls) |
 | Local message history | [plaintext-store.ts](../src/messaging/local/plaintext-store.ts) |
 | Messaging visibility and delivery | [Messaging.daml](../daml/Vinss/Messaging.daml), [Canton transport](../src/messaging/canton/transport.ts) |
-| Agreement and escrow authority | [Deal.daml](../daml/Vinss/Deal.daml) |
+| Deal & Escrow (Rekber) authority | [Deal.daml — Deal & Escrow](../daml/Vinss/Deal.daml), [Escrow guide](ESCROW.md) |
 | Job → room → offer draft | [job-conversations.ts](../frontend/lib/job-conversations.ts), [JobOfferDraft.tsx](../frontend/components/workspace/JobOfferDraft.tsx) |
 
 ## Evidence already recorded

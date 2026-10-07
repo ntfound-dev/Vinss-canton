@@ -69,7 +69,9 @@ Membership metadata (title, roles, Party credentials and installation roster) tr
 
 Multiple browser tabs or simultaneously active runtimes for the same installation do not have a cross-tab MLS write lock. Use one active room tab per installation for the demo. Device linking, durable pending-message outbox/reconciliation and offline delivery guarantees are not implemented; a successful submit followed by a local storage failure can leave an on-ledger message that the UI reported as failed. Retry sending can produce a new message ID. Canton transaction acknowledgements must be checked before assuming a message/offer succeeded.
 
-## Offers and escrow
+## Deal & Escrow (Rekber)
+
+The [escrow guide](ESCROW.md) maps every template, authorized actor and funding check in this workflow.
 
 The frontend sends canonical private terms inside MLS `deal_proposal`; `Vinss.Deal:DealProposal` stores their hash, amount, instrument, Parties, expiry and optional `instrumentAdmin`. `deal_action` chat content reports workflow changes; it is not itself ledger authorization. UI actions use `HttpCantonOfferProvider` and verify the referenced proposal contract before acceptance.
 

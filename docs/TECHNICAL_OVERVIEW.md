@@ -20,7 +20,9 @@ The browser runs OpenMLS and the Canton dApp wallet SDK. Canton stores messaging
 
 **Recovery boundary.** Clearing browser storage removes local history and keys. History and checkpoint writes are not atomic. There is no cross-device history or cross-tab MLS write lock.
 
-## Offer, review and settlement
+## Deal & Escrow (Rekber)
+
+The [escrow guide](ESCROW.md) covers the complete contract lifecycle and its payment boundaries.
 
 **Business authority.** DealProposal creates DealAgreement on acceptance. FundEscrow validates the referenced Allocation. The fulfiller submits funded work, the reviewer approves or requests revision, and the fulfiller exercises Settle.
 

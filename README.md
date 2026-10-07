@@ -73,6 +73,7 @@ The [document index](docs/README.md) maps materials to all six Season 3 judging 
 | [Business brief](docs/BUSINESS_BRIEF.md) | [Messaging verification](docs/MESSAGING_E2E.md) |
 | [GTM](docs/GTM.md) and [pilot plan](docs/PILOT_PLAN.md) | [DevNet settlement evidence](docs/CANTON_DEVNET_E2E.md) |
 | [Pitch outline](docs/PITCH.md) | [Demo and code map](docs/SUBMISSION.md) |
+| | [Deal & Escrow (Rekber)](docs/ESCROW.md) |
 
 The index also links one-page PDFs of product value, audience, validation, GTM and the technical summary. Business hypotheses and planned features remain distinct from implemented behavior and recorded test results.
 
@@ -84,7 +85,7 @@ The index also links one-page PDFs of product value, audience, validation, GTM a
 | `frontend/lib/` | Browser wallet integration, invitations, private/group room runtimes and job entry flow |
 | `src/messaging/` | Shared MLS provider, Canton transport, local history and checkpoints |
 | `src/canton/` | Ledger client, offer provider, token registry and allocation/settlement helpers |
-| `daml/Vinss/` | On-ledger messaging and deal contracts |
+| [`daml/`](daml/README.md) | Contract index: messaging and **Deal & Escrow (Rekber)** in `daml/Vinss/` |
 | `wasm/vinss_mls/` | Rust OpenMLS source; browser bundle is in `frontend/lib/openmls/` |
 | `tests/` | Unit/runtime tests and local/live integration scenarios |
 | `docs/` | Product narrative, pilot plan, architecture and verification evidence |
