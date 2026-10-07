@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CantonWalletConnect } from "@/components/CantonWalletConnect";
@@ -69,9 +70,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
       <header className="app-header">
         <Link className="brand" href="/" aria-label="VINSS home">
-          <span className="brand-mark">
-            V<span />
-          </span>
+          <Image
+            className="brand-logo"
+            src="/brand/vinss-mark.png"
+            alt=""
+            width={40}
+            height={40}
+            sizes="40px"
+            priority
+          />
           VINSS
         </Link>
         <div className="header-right">
