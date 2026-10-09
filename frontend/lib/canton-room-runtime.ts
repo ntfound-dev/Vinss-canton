@@ -807,12 +807,19 @@ export class CantonRoomRuntime {
       throw new Error("You cannot accept your own offer");
     }
 
-    await this.verifyOfferContract(offer);
-
-    const agreement = await this.offerProvider.acceptProposal(
-      this.activeParty,
-      offer.contractId,
-    );
+    // Acceptance consumes the proposal. A retry must use the live agreement.
+    const existing = await this.offerProvider.findActiveAgreement(this.activeParty, offer.dealId);
+    if (existing) {
+      const expected = { dealId: offer.dealId, conversationId: this.input.conversationId,
+        seller: offer.seller, buyer: offer.buyer, termsHash: offer.termsHash,
+        amount: offer.amount, instrumentId: offer.instrumentId, expiresAt: offer.expiresAt,
+        instrumentAdmin: offer.instrumentAdmin };
+      for (const [key, value] of Object.entries(expected))
+        if (existing.terms[key as keyof typeof existing.terms] !== value)
+          throw new Error("The live agreement does not match this offer.");
+    }
+    if (!existing) await this.verifyOfferContract(offer);
+    const agreement = existing ?? await this.offerProvider.acceptProposal(this.activeParty, offer.contractId);
 
     let allocationContractId: string | undefined;
 

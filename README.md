@@ -60,7 +60,7 @@ Content encryption does not hide ledger metadata. Local plaintext history is not
 | Sample jobs and `/demo` | Simulated UI previews | No real escrow or token transfers |
 | Points, VIP and multichain | Planned | No points issuance, subscription billing or additional chain runtime |
 
-The latest automated suite passed **69 tests across 24 files**. Its messaging scenario checks real encryption, two-way delivery, groups, history reload and ciphertext-only message contracts. These results are local verification; they do not establish a new live Canton messaging run. The recorded DevNet escrow settlement is separate evidence.
+The 2026-10-09 local suite passed **76 tests across 26 files**. Wallet authorization, fresh cBTC settlement and BitSafe Gold deployment remain unverified; see [Testing](docs/TESTING.md) and [BitSafe Gold](docs/BITSAFE_GOLD.md). Its messaging scenario checks real encryption, two-way delivery, groups, history reload and ciphertext-only message contracts. These results are local verification; they do not establish a new live Canton messaging run. The recorded DevNet escrow settlement is separate evidence.
 
 ## Documentation map
 
@@ -76,6 +76,21 @@ The [document index](docs/README.md) maps materials to all six Season 3 judging 
 | | [Deal & Escrow (Rekber)](docs/ESCROW.md) |
 
 Only the pitch deck is a PDF. Value, ICP, Metrics and GTM are Markdown for the submission fields; Demo uses links. Business hypotheses and planned features remain distinct from implemented behavior and recorded test results.
+
+## Setup and operator guides
+
+Use Node 24. From repository root:
+
+```bash
+npm ci
+npm ci --prefix frontend
+cp frontend/.env.example frontend/.env.local
+npm run dev --prefix frontend
+```
+
+Configure a compatible wallet/network using [Wallet setup](docs/WALLET_SETUP.md), then visit `/connect-test`. A hosted gateway or configured WalletConnect project is needed when the browser has no compatible CIP-103 extension. No public wallet credentials are bundled.
+
+[Deployment](docs/DEPLOYMENT.md) covers Vercel and participant/DAR dependencies. [Testing](docs/TESTING.md) includes automated commands and a browser-only acceptance walkthrough. [BitSafe Gold](docs/BITSAFE_GOLD.md) records the missing DecMan integration and deployment evidence. The current branch is a readiness fix, not proof that all live readiness gates passed.
 
 ## Repository layout
 

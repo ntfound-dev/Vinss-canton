@@ -160,6 +160,15 @@ export class CantonTokenWallet {
       );
     }
 
+    // A previous allocation may have committed before FundEscrow failed.
+    // Reuse it rather than locking the payer's holdings a second time.
+    const existing = (await queryInterface.call(this.#ledger, actingParty, ALLOCATION_INTERFACE))
+      .filter(candidate => allocationMatchesAgreement(candidate, agreement, this.#now())).at(-1);
+    if (existing) {
+      const escrowContractId = await this.#dealProvider.fundEscrow(actingParty, agreement.contractId, existing.contractId);
+      return { allocationContractId: existing.contractId, escrowContractId };
+    }
+
     const now =
       this.#now();
 
@@ -739,4 +748,18 @@ function record(
     ? value as
         Record<string, unknown>
     : undefined;
+}
+
+function allocationMatchesAgreement(contract: CantonInterfaceContract, agreement: DealAgreement, now: Date): boolean {
+  const allocation = record(contract.interfaceView.allocation);
+  const leg = record(allocation?.transferLeg);
+  const settlement = record(allocation?.settlement);
+  const instrument = record(leg?.instrumentId);
+  const terms = agreement.terms;
+  return allocationDealId(contract) === terms.dealId &&
+    leg?.sender === (terms.reviewer ?? terms.buyer) && leg?.receiver === (terms.fulfiller ?? terms.seller) &&
+    settlement?.executor === (terms.fulfiller ?? terms.seller) &&
+    instrument?.admin === terms.instrumentAdmin && instrument?.id === terms.instrumentId &&
+    typeof leg?.amount === "string" && decimalUnits(leg.amount) === decimalUnits(terms.amount) &&
+    typeof settlement?.settleBefore === "string" && Date.parse(settlement.settleBefore) > now.getTime();
 }

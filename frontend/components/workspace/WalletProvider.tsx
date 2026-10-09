@@ -11,6 +11,7 @@ import type * as sdk from "@canton-network/dapp-sdk";
 import {
   initCantonWalletSdk,
   loadCantonWalletSdk,
+  verifiedWalletAccounts,
 } from "@/lib/canton-wallet-config";
 import { walletWait } from "@/lib/wallet-wait";
 type Account = Awaited<ReturnType<typeof sdk.listAccounts>>[number];
@@ -26,8 +27,8 @@ interface Value {
 const Context = createContext<Value | null>(null);
 export function primaryAccount(accounts: readonly Account[]) {
   return (
-    accounts.find((a) => a.primary && !a.disabled && a.status !== "removed") ??
-    accounts.find((a) => !a.disabled && a.status !== "removed")
+    accounts.find((a) => a.primary && !a.disabled && a.status === "allocated") ??
+    accounts.find((a) => !a.disabled && a.status === "allocated")
   );
 }
 export function WalletProvider({ children }: { children: ReactNode }) {
@@ -62,7 +63,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             await initCantonWalletSdk();
             const sdk = await loadCantonWalletSdk();
             return (await sdk.isConnected()).isConnected
-              ? await sdk.listAccounts()
+              ? await verifiedWalletAccounts()
               : [];
           })(),
           8000,
@@ -82,12 +83,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!connected) return;
     let stopped = false;
-    const changed = (accounts: readonly Account[]) => {
-      if (!stopped) apply(accounts);
+    const changed = (_accounts: readonly Account[]) => {
+      void verifiedWalletAccounts().then(accounts => { if (!stopped) { apply(accounts); setError(""); } }).catch(e => {
+        if (!stopped) { setSession(null); setError(e instanceof Error ? e.message : String(e)); }
+      });
+    };
+    const statusChanged = (status: sdk.StatusEvent) => {
+      if (!status.connection.isConnected) { if (!stopped) setSession(null); }
+      else changed([]);
     };
     void loadCantonWalletSdk()
       .then((sdk) => {
-        if (!stopped) return sdk.onAccountsChanged(changed);
+        if (!stopped) return Promise.all([sdk.onAccountsChanged(changed), sdk.onStatusChanged(statusChanged)]);
       })
       .catch((e) => {
         if (!stopped) setError(e instanceof Error ? e.message : String(e));
@@ -95,7 +102,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     return () => {
       stopped = true;
       void loadCantonWalletSdk()
-        .then((sdk) => sdk.removeOnAccountsChanged(changed))
+        .then((sdk) => Promise.all([sdk.removeOnAccountsChanged(changed), sdk.removeOnStatusChanged(statusChanged)]))
         .catch(() => {});
     };
   }, [connected]);
@@ -116,7 +123,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             throw new Error(
               "Connection cancelled. Choose a wallet to try again.",
             );
-          const accounts = await sdk.listAccounts();
+          const accounts = await verifiedWalletAccounts();
           if (!primaryAccount(accounts))
             throw new Error(
               "No active Canton account found. Choose an account in your wallet.",
@@ -160,7 +167,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     setError("");
     try {
-      await (await loadCantonWalletSdk()).disconnect();
+      await walletWait((await loadCantonWalletSdk()).disconnect(), 10000);
       setSession(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

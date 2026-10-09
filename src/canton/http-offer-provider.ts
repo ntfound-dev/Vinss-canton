@@ -234,6 +234,12 @@ export class HttpCantonOfferProvider
     };
   }
 
+  async findActiveAgreement(actingParty: CantonPartyId, dealId: string): Promise<DealAgreement | undefined> {
+    const contracts = await this.ledger.queryActiveContracts(actingParty);
+    const agreement = contracts.filter(c => isCantonDealTemplate(c.templateId, "DealAgreement") && c.createArgument.dealId === dealId).at(-1);
+    return agreement ? { contractId: agreement.contractId, terms: readTerms(agreement.createArgument), acceptedAt: readString(agreement.createArgument, "acceptedAt") } : undefined;
+  }
+
   async rejectProposal(
     actingParty:
       CantonPartyId,

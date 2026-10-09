@@ -521,3 +521,11 @@ instrumentAdmin = DSO::<...>
 - VINSS references a Token Standard Allocation; it does not custody user funds itself.
 - Authentication credentials are runtime secrets and must never be committed.
 - Browser transaction signing should remain delegated to a compatible Canton wallet/signing provider.
+
+## Current-release verification (2026-10-09)
+
+No fresh network execution was performed during the readiness patch. The historical identifiers above were preserved as repository evidence and were not re-queried in this session. They identify Amulet/CC, not cBTC. The current browser wallet approval and full two-user cBTC run are still outstanding.
+
+To reproduce cBTC execution, use two authorized test wallets on the same selected network and follow [TESTING.md](TESTING.md). Confirm the network's actual CBTC instrument/admin and registrar before allocation. Record proposal, acceptance, allocation, funding, delivery, approval and settlement update IDs, allocation CID, receipt CID, receiver Holding CID/amount/admin/instrument and unlocked state. Do not replace CBTC with Amulet and call the outcome cBTC evidence.
+
+Publish only public/safely redacted execution references. Keep wallet/session/ledger credentials private. If a stage fails, record it and stop; do not fill evidence fields from a simulation.

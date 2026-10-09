@@ -3,6 +3,7 @@ import type * as cantonSdk from "@canton-network/dapp-sdk";
 import {
   initCantonWalletSdk,
   loadCantonWalletSdk,
+  verifiedWalletAccounts,
 } from "./canton-wallet-config";
 
 import { HttpCantonLedgerClient } from "../../src/canton/http-ledger-client.js";
@@ -48,7 +49,7 @@ export class CantonDappLedgerClient implements CantonLedgerClient {
       );
     }
 
-    const accounts = await (await loadCantonWalletSdk()).listAccounts();
+    const accounts = await verifiedWalletAccounts();
 
     const primary = selectPrimaryAccount(accounts);
 
@@ -68,7 +69,7 @@ export class CantonDappLedgerClient implements CantonLedgerClient {
   }
 
   async getAuthenticatedIdentity(): Promise<CantonAuthenticatedIdentity> {
-    const accounts = await (await loadCantonWalletSdk()).listAccounts();
+    const accounts = await verifiedWalletAccounts();
 
     const primary = selectPrimaryAccount(accounts);
 
@@ -144,13 +145,14 @@ function selectPrimaryAccount(
 }
 
 function isUsableAccount(account: WalletAccount): boolean {
-  return account.status !== "removed" && account.disabled !== true;
+  return account.status === "allocated" && account.disabled !== true;
 }
 
 const walletGatewayFetch: typeof globalThis.fetch = async (
   input,
   init,
 ): Promise<Response> => {
+  await verifiedWalletAccounts();
   const url = requestUrl(input);
 
   const parsed = new URL(url);
