@@ -1,25 +1,23 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { Icon } from "./Icon";
 export function InviteQr({ url }: { url: string }) {
-  const canvas = useRef<HTMLCanvasElement>(null),
-    [png, setPng] = useState(""),
+  const [png, setPng] = useState(""),
     [error, setError] = useState("");
   useEffect(() => {
     let stopped = false;
     setPng("");
     setError("");
-    if (!canvas.current || !url) return;
-    void QRCode.toCanvas(canvas.current, url, {
+    if (!url) return;
+    void QRCode.toDataURL(url, {
       errorCorrectionLevel: "M",
       margin: 4,
       width: 640,
       color: { dark: "#102820", light: "#ffffff" },
     })
-      .then(() => {
-        if (!stopped && canvas.current)
-          setPng(canvas.current.toDataURL("image/png"));
+      .then((dataUrl) => {
+        if (!stopped) setPng(dataUrl);
       })
       .catch(() => {
         if (!stopped)
@@ -52,12 +50,14 @@ export function InviteQr({ url }: { url: string }) {
         )}
       </div>
       <div className="qr-code-wrap">
-        <canvas
-          ref={canvas}
-          role="img"
-          aria-label="QR code for this VINSS invitation"
-          style={{ display: error ? "none" : undefined }}
-        />
+        {png && (
+          <img
+            src={png}
+            width={640}
+            height={640}
+            alt="QR code for this VINSS invitation"
+          />
+        )}
         {!png && !error && <span className="small muted">Preparing QR…</span>}
       </div>
     </section>
