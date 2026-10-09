@@ -2,7 +2,8 @@
 import { useState } from "react";
 import { CantonWalletConnect } from "@/components/CantonWalletConnect";
 import { useWallet } from "@/components/workspace/WalletProvider";
-import { loadCantonWalletSdk, verifiedWalletAccounts } from "@/lib/canton-wallet-config";
+import { loadActiveWalletSdk, verifiedWalletAccounts } from "@/lib/canton-wallet-config";
+import { walletErrorMessage } from "@/lib/grofty-wallet";
 import { walletWait } from "@/lib/wallet-wait";
 
 export default function ConnectTestPage() {
@@ -16,12 +17,13 @@ export default function ConnectTestPage() {
     try {
       await walletWait((async () => {
         await verifiedWalletAccounts();
-        const response = await (await loadCantonWalletSdk()).ledgerApi({ requestMethod: "get", resource: "/v2/state/ledger-end" });
-        const body = typeof response.response === "string" ? JSON.parse(response.response) : response;
+        const response = await (await loadActiveWalletSdk()).ledgerApi({ requestMethod: "get", resource: "/v2/state/ledger-end" });
+        const body = response && typeof response === "object" && "response" in response && typeof response.response === "string" ? JSON.parse(response.response) : response;
+        if (!body || typeof body !== "object" || !("offset" in body)) throw new Error("Wallet did not return a ledger offset.");
         if (typeof body.offset !== "number" && typeof body.offset !== "string") throw new Error("Wallet did not return a ledger offset.");
         setResult(`Ledger read authorized. Current offset: ${body.offset}. No transaction was submitted.`);
       })(), 15000);
-    } catch { setResult("Ledger read failed. Check wallet permissions, the validator connection, and gateway authentication/CORS. Reconnect and retry."); }
+    } catch (error) { setResult(`Ledger read failed: ${walletErrorMessage(error)}`); }
     finally { setChecking(false); }
   }
   return <section className="stack">
@@ -29,6 +31,7 @@ export default function ConnectTestPage() {
     <p>Connect, approve access in your wallet, then confirm your Canton Party ID and ledger access.</p>
     <dl className="stack">
       <div>Application network: <strong>{network}</strong></div>
+      <div>Grofty SDK: 0.2.0 — direct provider discovery, Wallet 2.0.4+ required, MainNet only</div>
       <div>CIP-103 extension discovery: enabled</div>
       <div>Configured remote gateway: {gatewayConfigured ? "available in wallet picker" : "none; use a compatible extension or enter your provider’s HTTPS RPC endpoint"}</div>
       <div>WalletConnect: {wcConfigured ? "configured; choose a wallet supporting Canton dApp methods" : "not configured for this deployment"}</div>
@@ -42,7 +45,7 @@ export default function ConnectTestPage() {
     {result && <p role="status">{result}</p>}
     <div className="ui-alert info">
       <p>Allow the wallet popup for this site. Finish or cancel its existing request before trying again.</p>
-      <p>On Android, open VINSS in a full browser, not an embedded chat browser. Desktop extensions are not automatically available on mobile. Use a provider supporting Canton WalletConnect or a hosted CIP-103 gateway.</p>
+      <p>On Android, open VINSS in a full browser, not an embedded chat browser. Grofty’s Android app does not automatically connect to Chrome Android; the official SDK documents injected provider discovery, without a Chrome Android pairing transport. Use a provider supporting Canton WalletConnect or a hosted CIP-103 gateway.</p>
       <p>A wallet name alone does not prove compatibility. It must authorize Canton accounts and the ledger/transaction methods used by VINSS. Never enter a seed phrase or access token here.</p>
     </div>
   </section>;

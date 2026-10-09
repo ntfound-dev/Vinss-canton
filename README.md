@@ -117,3 +117,5 @@ Complete the current wallet-connected Canton workflow with separate users, then 
 
 Dispute/refund handling, cross-device recovery and group escrow are not implemented. See the [pilot plan](docs/PILOT_PLAN.md) before treating the current release as a production payment service.
 
+
+Grofty direct SDK connection is now an additional wallet option; existing Canton SDK/gateway/WalletConnect paths remain. MainNet-only and mobile/ledger compatibility limits are documented in [Wallet setup](docs/WALLET_SETUP.md). Live Grofty approval and full escrow are unverified.

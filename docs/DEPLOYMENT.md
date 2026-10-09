@@ -36,3 +36,7 @@ DecMan deployment needs independent operator infrastructure; see [BITSAFE_GOLD.m
 Open Home, `/connect-test`, `/invite/new`, `/rooms`, `/jobs`, `/deals` on desktop and Android. Check browser errors, wallet approval and authenticated ledger read. Complete [TESTING.md](TESTING.md)'s two-user workflow before declaring readiness. Label sample jobs and `/demo` as simulated.
 
 Rollback frontend to the last reviewed Vercel deployment if needed. Preserve local browser IndexedDB and existing ledger contracts. Rolling back JavaScript does not undo an accepted agreement, allocation or settled transfer. Query the live ledger before recovery and use funding retry only for the surviving agreement. There is no VINSS refund/dispute UI.
+
+## Grofty connection addition
+
+The chooser adds official `@groftylabs/dapp-sdk` 0.2.0 alongside the existing Canton SDK/gateway/WalletConnect routes. Grofty Wallet 2.0.4+ is required and reports `canton:da-mainnet`; DevNet deployments reject it. The direct provider path does not establish Chrome Android pairing or complete escrow compatibility: `/v2/updates` and interface-view support remain limitations. See [wallet setup](./WALLET_SETUP.md) for behavior, recovery and verification status.

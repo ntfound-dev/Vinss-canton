@@ -49,3 +49,9 @@ Use two separate browser profiles/devices with allocated, compatible wallets on 
 Record application commit/preview URL, network, two Parties, contract IDs and update references for every successful ledger action. The screenshot of a green build or simulated `/demo` cannot substitute for these results. Stop on unexplained funds/state discrepancies; do not submit a duplicate transaction merely because the UI timed out.
 
 Production completion requires gates: (1) approved wallet + Party + ledger read, (2) two-wallet encrypted chat + actual cBTC receipt/receiver holding, (3) CI + deployed preview + honest Gold evidence. This change does not mark all three gates complete.
+
+## Grofty connection addition
+
+The chooser adds official `@groftylabs/dapp-sdk` 0.2.0 alongside the existing Canton SDK/gateway/WalletConnect routes. Grofty Wallet 2.0.4+ is required and reports `canton:da-mainnet`; DevNet deployments reject it. The direct provider path does not establish Chrome Android pairing or complete escrow compatibility: `/v2/updates` and interface-view support remain limitations. See [wallet setup](./WALLET_SETUP.md) for behavior, recovery and verification status.
+
+Grofty read-only acceptance: open `/connect-test`, choose **Connect Grofty**, approve in an unlocked Wallet 2.0.4+ desktop extension, confirm the primary Party ID, read the ledger offset, reload, switch the wallet primary account, disconnect/reconnect, and reject one approval. A DevNet app must reject `canton:da-mainnet`; do not submit MainNet commands as a workaround. In Chrome Android without an injected provider, confirm the absence/recovery message instead of a fake successful connection. Automated Grofty tests use a fake provider and do not constitute live wallet evidence.

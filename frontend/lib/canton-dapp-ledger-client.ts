@@ -2,7 +2,7 @@ import type * as cantonSdk from "@canton-network/dapp-sdk";
 
 import {
   initCantonWalletSdk,
-  loadCantonWalletSdk,
+  loadActiveWalletSdk,
   verifiedWalletAccounts,
 } from "./canton-wallet-config";
 
@@ -41,7 +41,7 @@ export class CantonDappLedgerClient implements CantonLedgerClient {
   ): Promise<CantonDappLedgerClient> {
     await initCantonWalletSdk();
 
-    const connection = await (await loadCantonWalletSdk()).isConnected();
+    const connection = await (await loadActiveWalletSdk()).isConnected();
 
     if (!connection.isConnected) {
       throw new Error(
@@ -182,7 +182,7 @@ const walletGatewayFetch: typeof globalThis.fetch = async (
   }
 
   const result = await (
-    await loadCantonWalletSdk()
+    await loadActiveWalletSdk()
   ).ledgerApi({
     requestMethod: method,
 
@@ -248,7 +248,7 @@ async function executeWithWallet(value: unknown): Promise<Response> {
   } as Parameters<typeof cantonSdk.prepareExecuteAndWait>[0];
 
   const executed = await (
-    await loadCantonWalletSdk()
+    await loadActiveWalletSdk()
   ).prepareExecuteAndWait(params);
 
   return jsonResponse({

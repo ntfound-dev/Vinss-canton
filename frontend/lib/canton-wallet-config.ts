@@ -1,5 +1,35 @@
+import { discoverGrofty, networkMatches } from "./grofty-wallet";
 import type * as CantonSdk from "@canton-network/dapp-sdk";
 let sdkPromise: Promise<typeof CantonSdk> | undefined;
+export type WalletKind = "canton" | "grofty";
+let selected: WalletKind = "canton";
+let grofty: Awaited<ReturnType<typeof discoverGrofty>> | undefined;
+export async function selectWallet(kind: WalletKind) {
+  if (kind === "grofty") {
+    const found = await discoverGrofty();
+    const probe = await found.status();
+    const expected = expectedNetwork();
+    if (!probe.network?.networkId || !networkMatches(probe.network.networkId, expected))
+      throw new Error(`Grofty is MainNet only (${probe.network?.networkId || "unknown network"}). This VINSS deployment expects ${expected}. Use a wallet supporting this deployment network. A separate MainNet deployment needs matching Canton contracts and registries.`);
+    grofty = found;
+  } else await initCantonWalletSdk();
+  selected = kind;
+}
+export async function restoreWalletSelection() {
+  let saved: string | null = null;
+  try { saved = localStorage.getItem("vinss.wallet.kind"); } catch {}
+  if (saved === "grofty") await selectWallet("grofty");
+  else await initCantonWalletSdk();
+}
+export function rememberWalletSelection() {
+  try { localStorage.setItem("vinss.wallet.kind", selected); } catch {}
+}
+export function forgetWalletSelection() {
+  try { localStorage.removeItem("vinss.wallet.kind"); } catch {}
+}
+export async function loadActiveWalletSdk() {
+  return selected === "grofty" && grofty ? grofty : loadCantonWalletSdk();
+}
 let initPromise: Promise<void> | undefined;
 export function loadCantonWalletSdk() {
   return (sdkPromise ??= import("@canton-network/dapp-sdk").catch((error) => {
@@ -58,16 +88,19 @@ function walletConnectAdapters(sdk: typeof CantonSdk) {
     metadata: { name: "VINSS", description: "Private deals on Canton", url: location.origin, icons: [] },
   })];
 }
+function expectedNetwork() {
+  return process.env.NEXT_PUBLIC_CANTON_WALLET_NETWORK_ID?.trim() ||
+    (process.env.NEXT_PUBLIC_CANTON_NETWORK || "devnet").trim().toLowerCase();
+}
 export async function verifiedWalletAccounts(): Promise<CantonSdk.Wallet[]> {
-  const sdk = await loadCantonWalletSdk();
+  const sdk = await loadActiveWalletSdk();
   const status = await sdk.status();
   if (!status.connection.isConnected) throw new Error("Wallet disconnected. Connect again.");
   if (!status.connection.isNetworkConnected)
     throw new Error("Your wallet is not connected to Canton. Select a connected network in the wallet and retry.");
-  const expected = process.env.NEXT_PUBLIC_CANTON_WALLET_NETWORK_ID?.trim() ||
-    (process.env.NEXT_PUBLIC_CANTON_NETWORK || "devnet").trim().toLowerCase();
+  const expected = expectedNetwork();
   const actual = status.network?.networkId;
-  if (!actual || (actual !== expected && actual !== `canton:${expected}`))
+  if (!actual || !networkMatches(actual, expected))
     throw new Error(`Wallet network ${actual || "unknown"} does not match ${expected}. Switch the wallet network or open the matching VINSS deployment.`);
   return (await sdk.listAccounts()).filter(a => a.status === "allocated" && !a.disabled && a.partyId &&
     (a.networkId === actual));

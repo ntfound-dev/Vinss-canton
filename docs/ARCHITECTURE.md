@@ -99,3 +99,7 @@ SDK initialization registers CIP-103 extensions, configured/recent HTTPS gateway
 `/connect-test` exposes only configuration presence, network, approved Party and an explicit read-only ledger-offset check; it does not print SDK status/session objects containing credentials. This is diagnostic code, not evidence of a successful external wallet connection.
 
 Funding recovery looks up the active agreement and checks its terms; existing compatible, unexpired allocations can be reused. The payer UI exposes retry and disables unfunded delivery. See [Escrow](ESCROW.md). There is no current DecMan module or deployed shared VINSS Party; see [BitSafe Gold](BITSAFE_GOLD.md).
+
+## Grofty connection addition
+
+The chooser adds official `@groftylabs/dapp-sdk` 0.2.0 alongside the existing Canton SDK/gateway/WalletConnect routes. Grofty Wallet 2.0.4+ is required and reports `canton:da-mainnet`; DevNet deployments reject it. The direct provider path does not establish Chrome Android pairing or complete escrow compatibility: `/v2/updates` and interface-view support remain limitations. See [wallet setup](./WALLET_SETUP.md) for behavior, recovery and verification status.
