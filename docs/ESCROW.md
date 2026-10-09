@@ -4,7 +4,7 @@
 
 VINSS keeps the agreement and payment workflow in one two-person private room. Detailed work terms travel through encrypted messages. Canton records who agreed, the funding reference, delivery and review decisions, and the settlement receipt.
 
-The complete contract workflow lives in [daml/Vinss/Deal.daml](../daml/Vinss/Deal.daml), under `Vinss.Deal`. It includes both offers and escrow. This guide describes the implementation at the documentation baseline `4cc557f`.
+The complete contract workflow lives in [daml/Vinss/Deal.daml](../daml/Vinss/Deal.daml), under `Vinss.Deal`. It includes both offers and escrow. This guide includes the 2026-10-09 funding recovery changes.
 
 ## What rekber means here
 
@@ -96,3 +96,23 @@ The VINSS `Settle` path requires approved fulfillment. This is a statement about
 | Wallet-connected room actions | [canton-room-runtime.ts](../frontend/lib/canton-room-runtime.ts) |
 
 The provider's existing filename includes `offer`, but its implementation handles agreement, escrow, fulfillment, review and settlement as well.
+
+## Funding recovery
+
+HackCanton DevNet sign-in uses the same HTTP Ledger API as the historical CC runbook, with each user's own ledger authorization and an in-app approval for every submission. It is a NODERS hosted sandbox Party, not external wallet signing. Its CC registry calls use the authenticated scan proxy and live DSO discovery. Choose **CC** explicitly for that workflow; CBTC still uses its own registry and needs CBTC holdings. A successful CC run must never be presented as CBTC execution.
+
+If acceptance succeeds but funding fails, the ledger retains `DealAgreement`. Room history is hydrated from active contracts after ledger updates and refresh. The payer can press **Retry escrow funding**. Runtime first resolves the active agreement and checks its recorded terms against the encrypted offer; it does not exercise the archived proposal again.
+
+Before allocating new holdings, the token wallet queries existing allocations and reuses a live allocation matching deal ID, sender, receiver, executor, instrument/admin, exact decimal amount and settlement deadline. `FundEscrow` still validates the allocation on-ledger. Rejected/expired/wrong-party allocations are not accepted for recovery. This avoids locking a second allocation after the first succeeded and funding failed. Pending or concurrent submissions still require ledger reconciliation; this is not a general transaction outbox or concurrency guarantee.
+
+The UI blocks work submission before funded escrow is confirmed. The same `onAccept` action handles funding retry; acceptance, funding and the encrypted action notification remain separate transactions. Check live contract state after any timeout.
+
+### cBTC verification boundary
+
+Network admin/registrar defaults are in `frontend/lib/canton-room-runtime.ts`; token allocation is instrument-specific. No silent CC substitution exists in this patch. The configured DevNet/TestNet/MainNet admin Parties and utility base URLs match the official [BitSafe cbtc-lib network configuration](https://github.com/DLC-link/cbtc-lib#environment-specific-values), checked on 2026-10-09. They were not independently queried on-network here. Live validation must confirm the registrar, unlocked CBTC holdings, allocation and receipt with the same admin/asset on the intended network. The historical Amulet receipt is CC evidence only. See [Testing](TESTING.md) and [DevNet evidence](CANTON_DEVNET_E2E.md).
+
+Test cBTC is available through the official [BitSafe faucet](https://cbtc-faucet.bitsafe.finance/), subject to availability and recipient acceptance. The recipient participant requires the DA Utility Registry. Faucet receipt is a separate transfer and is not evidence of escrow settlement.
+
+## Grofty connection addition
+
+The chooser adds official `@groftylabs/dapp-sdk` 0.2.0 alongside the existing Canton SDK/gateway/WalletConnect routes. Grofty Wallet 2.0.4+ is required and reports `canton:da-mainnet`; DevNet deployments reject it. The direct provider path does not establish Chrome Android pairing or complete escrow compatibility: `/v2/updates` and interface-view support remain limitations. See [wallet setup](./WALLET_SETUP.md) for behavior, recovery and verification status.

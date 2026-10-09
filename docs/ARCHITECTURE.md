@@ -6,6 +6,12 @@ This document maps the implemented Canton wallet, OpenMLS messaging, invitation,
 
 The frontend uses `frontend/lib/canton-dapp-ledger-client.ts` to route the HTTP ledger client through the connected Canton wallet SDK. Its local user identity is `wallet:<Party>`. The SDK's active primary Party must match the room wallet; authorization comes from the wallet/ledger, not from a URL.
 
+On DevNet, the additional `devnet-wallet.ts` facade routes through same-origin `/api/devnet`. Each user signs in against the fixed NODERS OIDC endpoint; the server verifies `/v2/authenticated-user` and `CanActAs` rights before returning any Party. Access tokens are sealed with AES-256-GCM in an HttpOnly, SameSite=Strict cookie, with Secure on HTTPS, for at most one hour or the token expiry. Passwords and refresh tokens are not retained. The server session key is never public. Logout clears the cookie; expired/revoked access requires sign-in again. A two-second UI status cache avoids duplicate connection checks, while every actual ledger operation rechecks user rights.
+
+This route trusts VINSS's server and the NODERS participant to act for the selected sandbox Party. It is **not independently signed, self-custody wallet authorization**. A prepare request creates a short-lived encrypted approval ticket bound to the exact command envelope, authenticated user and selected Party; the UI asks before execute. Tickets do not replace a user's cryptographic signature. Commands receive the verified ledger user ID and only the selected Party in `actAs`/`readAs`. Reads and CC registry requests have fixed endpoint allowlists; tokens are never forwarded to arbitrary hosts. Normal wallets retain their own approval/signing paths.
+
+The DevNet CC admin is discovered from the authenticated validator scan proxy. Only explicitly selected CC/Amulet uses its authenticated registry. CBTC keeps its own admin and registrar; no asset substitution occurs. Token registry availability, DAR vetting, balance and two-user visibility remain external requirements. A timed-out submission may have committed; reconcile ledger state before retrying.
+
 `BrowserOpenMlsBridge` uses the bundled wasm-bindgen OpenMLS build in `frontend/lib/openmls/`. The Rust source lives in `wasm/vinss_mls/`. No custom encryption algorithm substitutes for MLS. Each browser installation creates its own MLS signing identity and KeyPackages; Canton wallet signing keys are separate.
 
 The browser is trusted with plaintext and MLS secrets. Canton transports ciphertext, signed KeyPackage advertisements, Welcome/Commit and visible metadata. Canton also stores canonical business records. The optional memory/HTTP relay implementations are core/test alternatives, not the frontend's current network path.
@@ -69,6 +75,12 @@ Membership metadata (title, roles, Party credentials and installation roster) tr
 
 Multiple browser tabs or simultaneously active runtimes for the same installation do not have a cross-tab MLS write lock. Use one active room tab per installation for the demo. Device linking, durable pending-message outbox/reconciliation and offline delivery guarantees are not implemented; a successful submit followed by a local storage failure can leave an on-ledger message that the UI reported as failed. Retry sending can produce a new message ID. Canton transaction acknowledgements must be checked before assuming a message/offer succeeded.
 
+The HTTP ledger reader recovers `PARTICIPANT_PRUNED_DATA_ACCESSED` on an update-range read by fetching the current party-filtered active contract set. This covers a fresh message cursor at zero and a saved cursor that predates participant retention. Original contract offsets remain unchanged and sorted, so a retained MLS welcome precedes later commits and ciphertext. The poller advances its saved offset only after successful local processing. This recovery does not resubmit a transaction, reset MLS keys, or widen Party access. Archived/pruned history cannot be recovered from the active contract set; local plaintext history is retained independently.
+
+The private-room UI displays initialization stages, permits composing a local draft before encryption is ready, and enables sending only after the runtime and membership are ready. A failed initialization shows an explicit retry. A draft remains in the mounted page during retry; it is not persisted across refresh. Recent-room metadata preserves the invite's signed key-package binding request.
+
+Each private-room runtime delivers a text message ID to its callback once, including when local history and ACS bootstrap overlap. Offers and actions still rehydrate on ledger updates because their lifecycle can change. Closing a runtime suppresses late message/error callbacks, and closing its polling subscription discards in-flight read results and errors instead of dispatching or rescheduling them.
+
 ## Deal & Escrow (Rekber)
 
 The [escrow guide](ESCROW.md) maps every template, authorized actor and funding check in this workflow.
@@ -91,3 +103,17 @@ VINSS contracts reference the Allocation; VINSS does not custody funds. A propos
 Jobs currently come from validated `frontend/data/jobs.json`, with search/category/pagination via `/api/jobs`; this is not an open job-publishing backend. Each real application creates a signed `KeyPackageRequest` and a new private conversation. The job supplies an offer draft; submitting the actual offer still requires user action and wallet authorization.
 
 `?demo=1` sample jobs and `/demo` are explicitly labeled previews with no real settlement. Points and VIP are Coming soon. Multichain is planned. None are represented as already active.
+
+## 2026-10-09 wallet and recovery boundary
+
+SDK initialization registers CIP-103 extensions, configured/recent HTTPS gateways and optional Canton WalletConnect. The app excludes the SDK's development-only localhost default. Account/connection events update usable sessions. Authenticated `status` must report a connected network matching the deployment; account Party must be allocated and enabled on that network. Ledger requests revalidate the connection/network before delegating to wallet authorization. Primary account selection remains in the wallet.
+
+A VINSS `DappSDK` instance applies network policy before the SDK picker opens: published Send Connect is excluded on DevNet; Grofty is enabled only on MainNet. Other providers still need actual network validation. An explicit gateway choice restricts the picker to the configured RemoteAdapter; it cannot silently choose an installed extension. Missing gateway access is shown in the chooser and diagnostics. The NODERS sandbox's Splice web wallet/JSON Ledger API are distinct from a CIP-103 Wallet Gateway; external-wallet approval still requires a compatible signing provider. The separate HackCanton browser login uses the node-hosted HTTP authorization route described above.
+
+`/connect-test` exposes only configuration presence, network, approved Party and an explicit read-only ledger-offset check; it does not print SDK status/session objects containing credentials. This is diagnostic code, not evidence of a successful external wallet connection.
+
+Funding recovery looks up the active agreement and checks its terms; existing compatible, unexpired allocations can be reused. The payer UI exposes retry and disables unfunded delivery. See [Escrow](ESCROW.md). There is no current DecMan module or deployed shared VINSS Party; see [BitSafe Gold](BITSAFE_GOLD.md).
+
+## Grofty connection addition
+
+The chooser adds official `@groftylabs/dapp-sdk` 0.2.0 alongside the existing Canton SDK/gateway/WalletConnect routes. Grofty Wallet 2.0.4+ is required and reports `canton:da-mainnet`; DevNet deployments reject it. The direct provider path does not establish Chrome Android pairing or complete escrow compatibility: `/v2/updates` and interface-view support remain limitations. See [wallet setup](./WALLET_SETUP.md) for behavior, recovery and verification status.

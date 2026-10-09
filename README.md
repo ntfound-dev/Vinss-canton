@@ -6,6 +6,8 @@ VINSS brings two people into one private room to negotiate, agree on an offer, f
 
 [Open the app](https://vinss-canton.vercel.app) · [Pitch deck](docs/vinss-deck.pdf) · [Submission materials](docs/README.md) · [Demo and evidence](docs/SUBMISSION.md)
 
+**HackCanton DevNet login now has a browser route.** Choose **HackCanton DevNet**, sign in with your own HackCanton account, and select an authorized Party. The server verifies the ledger user and `CanActAs` rights and requires explicit in-app approval for each transaction. This uses the NODERS hosted sandbox Party and HTTP Ledger API, not external wallet signing. Configure the server session key before deploying. Real account login and two-user acceptance still need verification. Grofty and the Canton SDK/gateway/WalletConnect routes remain available on compatible networks; Send Connect is excluded on DevNet. See [Wallet setup](docs/WALLET_SETUP.md).
+
 ## The problem
 
 People arranging a direct deal with a new counterparty must decide who pays or delivers first. Their conversation, final terms and payment records live in different places. Messages and transfer screenshots do not provide a shared process for completing the agreement.
@@ -60,7 +62,7 @@ Content encryption does not hide ledger metadata. Local plaintext history is not
 | Sample jobs and `/demo` | Simulated UI previews | No real escrow or token transfers |
 | Points, VIP and multichain | Planned | No points issuance, subscription billing or additional chain runtime |
 
-The latest automated suite passed **69 tests across 24 files**. Its messaging scenario checks real encryption, two-way delivery, groups, history reload and ciphertext-only message contracts. These results are local verification; they do not establish a new live Canton messaging run. The recorded DevNet escrow settlement is separate evidence.
+The DevNet session update passes **118 tests across 31 files**. These include mocked authentication/rights, encrypted sessions, selected-Party restrictions, transaction approval/rejection and receipt checks. Real user login, fresh cBTC settlement and BitSafe Gold deployment remain unverified; see [Testing](docs/TESTING.md) and [BitSafe Gold](docs/BITSAFE_GOLD.md). OpenMLS scenarios use real encryption with a simulated ledger. The recorded DevNet CC escrow settlement is separate evidence.
 
 ## Documentation map
 
@@ -76,6 +78,21 @@ The [document index](docs/README.md) maps materials to all six Season 3 judging 
 | | [Deal & Escrow (Rekber)](docs/ESCROW.md) |
 
 Only the pitch deck is a PDF. Value, ICP, Metrics and GTM are Markdown for the submission fields; Demo uses links. Business hypotheses and planned features remain distinct from implemented behavior and recorded test results.
+
+## Setup and operator guides
+
+Use Node 24. From repository root:
+
+```bash
+npm ci
+npm ci --prefix frontend
+cp frontend/.env.example frontend/.env.local
+npm run dev --prefix frontend
+```
+
+Configure the DevNet server session key or a compatible wallet/network using [Wallet setup](docs/WALLET_SETUP.md), then visit `/connect-test`. HackCanton DevNet login works through a web form; a hosted gateway or WalletConnect provider remains a separate option. No shared account credentials are bundled.
+
+[Deployment](docs/DEPLOYMENT.md) covers Vercel and participant/DAR dependencies. [Testing](docs/TESTING.md) includes automated commands and a browser-only acceptance walkthrough. [BitSafe Gold](docs/BITSAFE_GOLD.md) records the missing DecMan integration and deployment evidence. The current branch is a readiness fix, not proof that all live readiness gates passed.
 
 ## Repository layout
 
@@ -102,3 +119,5 @@ Complete the current wallet-connected Canton workflow with separate users, then 
 
 Dispute/refund handling, cross-device recovery and group escrow are not implemented. See the [pilot plan](docs/PILOT_PLAN.md) before treating the current release as a production payment service.
 
+
+Grofty direct SDK connection is now an additional wallet option; existing Canton SDK/gateway/WalletConnect paths remain. MainNet-only and mobile/ledger compatibility limits are documented in [Wallet setup](docs/WALLET_SETUP.md). Live Grofty approval and full escrow are unverified.

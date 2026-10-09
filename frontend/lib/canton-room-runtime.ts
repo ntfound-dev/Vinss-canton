@@ -17,6 +17,9 @@ import { HttpCantonOfferProvider } from "../../src/canton/http-offer-provider.js
 import { StaticCantonRegistryDirectory } from "../../src/canton/registry-directory.js";
 
 import { CantonTokenWallet } from "../../src/canton/token-wallet.js";
+import { HttpCantonTokenRegistryClient } from "../../src/canton/token-registry-client.js";
+import { selectedWalletKind } from "./canton-wallet-config";
+import { devNetWallet, devNetRegistryFetch } from "./devnet-wallet";
 
 import {
   isCantonDealTemplate,
@@ -124,6 +127,7 @@ function registrarRegistryUrl(
 }
 
 function configuredCcAdmin(): string | undefined {
+  if (selectedWalletKind() === "devnet" && devNetWallet.ccAdmin()) return devNetWallet.ccAdmin();
   const value = process.env.NEXT_PUBLIC_CANTON_CC_ADMIN?.trim();
 
   if (value) {
@@ -154,7 +158,7 @@ function configuredCantonRegistryEntries(): Record<string, string> {
 
   if (ccAdmin) {
     entries[ccAdmin] =
-      process.env.NEXT_PUBLIC_CANTON_CC_REGISTRY_URL?.trim() ||
+      (selectedWalletKind() === "devnet" ? "https://validator-api-http.validator.hackcanton-01.devnet.naas.noders.services/api/validator/v0/scan-proxy" : process.env.NEXT_PUBLIC_CANTON_CC_REGISTRY_URL?.trim()) ||
       `${network.scanUrl}/registry/`;
   }
 
@@ -304,6 +308,8 @@ export interface CantonRoomInput {
 
   onStatus(status: CantonRoomStatus): void;
 
+  onProgress?(message: string): void;
+
   onMessages(messages: readonly CantonRoomMessage[]): void;
 
   onOffers?(offers: readonly CantonRoomOffer[]): void;
@@ -327,6 +333,7 @@ export function loadOpenMls(): Promise<OpenMlsWasmModule> {
 
 export class CantonRoomRuntime {
   #subscription: CantonUpdateSubscription | undefined;
+  #closed = false;
   #queue: Promise<unknown> = Promise.resolve();
   private serialize<T>(work: () => Promise<T>): Promise<T> {
     const next = this.#queue.then(work, work);
@@ -367,6 +374,7 @@ export class CantonRoomRuntime {
 
   static async connect(input: CantonRoomInput): Promise<CantonRoomRuntime> {
     input.onStatus("connecting");
+    input.onProgress?.("Checking your Canton account…");
 
     const ledger = await CantonDappLedgerClient.connect(input.walletParty);
 
@@ -469,6 +477,9 @@ export class CantonRoomRuntime {
       credential: encoder.encode(directory.activeParty()),
     };
 
+    input.onProgress?.("Loading message encryption…");
+    await loadOpenMls();
+    input.onProgress?.("Preparing encryption keys. Review the approval requests that appear.");
     await provider.initialize(identity);
 
     const peerMember = {
@@ -519,6 +530,7 @@ export class CantonRoomRuntime {
       registryDirectory: new StaticCantonRegistryDirectory(
         configuredCantonRegistryEntries(),
       ),
+      ...(selectedWalletKind() === "devnet" ? { registryClientFactory: (baseUrl: string) => new HttpCantonTokenRegistryClient({ baseUrl, fetcher: devNetRegistryFetch }) } : {}),
     });
 
     const runtime = new CantonRoomRuntime(
@@ -536,13 +548,17 @@ export class CantonRoomRuntime {
 
     synchronize = (id, cursor) =>
       runtime.serialize(() => provider.sync(id, cursor));
+    input.onProgress?.(input.creator
+      ? "Establishing the encrypted room. Approve its handshake requests."
+      : "Waiting for the creator’s encrypted welcome…");
     await runtime.serialize(() => runtime.prepare());
 
+    const deliveredMessageIds = new Set<string>();
     const consume = async (
       conversationId: string,
       messages: readonly PlainMessage[],
     ) => {
-      if (conversationId !== input.conversationId) {
+      if (runtime.#closed || conversationId !== input.conversationId) {
         return;
       }
 
@@ -550,10 +566,12 @@ export class CantonRoomRuntime {
         .map((message) => toRoomMessage(message, installationId))
         .filter(
           (message): message is CantonRoomMessage => message !== undefined,
-        );
+        )
+        .filter((message) => !deliveredMessageIds.has(message.id));
 
       if (visible.length > 0) {
         input.onMessages(visible);
+        for (const message of visible) deliveredMessageIds.add(message.id);
       }
 
       const offers: CantonRoomOffer[] = [];
@@ -580,12 +598,11 @@ export class CantonRoomRuntime {
       }
 
       if (offers.length > 0) {
-        input.onOffers?.(
-          await hydrateOffers(offers, ledger, directory.activeParty()),
-        );
+        const hydrated = await hydrateOffers(offers, ledger, directory.activeParty());
+        if (!runtime.#closed) input.onOffers?.(hydrated);
       }
 
-      if (actions.length > 0) {
+      if (!runtime.#closed && actions.length > 0) {
         input.onDealActions?.(actions);
       }
     };
@@ -593,9 +610,11 @@ export class CantonRoomRuntime {
       input.conversationId,
       await history.list(input.conversationId),
     );
+    input.onProgress?.("Synchronizing the encrypted conversation with Canton…");
     runtime.#subscription = await live.start({
       onMessages: consume,
       async onLedgerOffset() {
+        if (runtime.#closed) return;
         if (input.creator) await runtime.serialize(() => runtime.prepare());
         else await runtime.refreshStatus();
 
@@ -608,7 +627,9 @@ export class CantonRoomRuntime {
         );
       },
 
-      onError: input.onError,
+      onError(error) {
+        if (!runtime.#closed) input.onError(error);
+      },
     });
 
     await runtime.refreshStatus();
@@ -807,12 +828,19 @@ export class CantonRoomRuntime {
       throw new Error("You cannot accept your own offer");
     }
 
-    await this.verifyOfferContract(offer);
-
-    const agreement = await this.offerProvider.acceptProposal(
-      this.activeParty,
-      offer.contractId,
-    );
+    // Acceptance consumes the proposal. A retry must use the live agreement.
+    const existing = await this.offerProvider.findActiveAgreement(this.activeParty, offer.dealId);
+    if (existing) {
+      const expected = { dealId: offer.dealId, conversationId: this.input.conversationId,
+        seller: offer.seller, buyer: offer.buyer, termsHash: offer.termsHash,
+        amount: offer.amount, instrumentId: offer.instrumentId, expiresAt: offer.expiresAt,
+        instrumentAdmin: offer.instrumentAdmin };
+      for (const [key, value] of Object.entries(expected))
+        if (existing.terms[key as keyof typeof existing.terms] !== value)
+          throw new Error("The live agreement does not match this offer.");
+    }
+    if (!existing) await this.verifyOfferContract(offer);
+    const agreement = existing ?? await this.offerProvider.acceptProposal(this.activeParty, offer.contractId);
 
     let allocationContractId: string | undefined;
 
@@ -1164,6 +1192,7 @@ export class CantonRoomRuntime {
   }
 
   close(): void {
+    this.#closed = true;
     this.#subscription?.close();
 
     this.#subscription = undefined;

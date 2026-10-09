@@ -9,10 +9,14 @@ import {
 } from "react";
 import type * as sdk from "@canton-network/dapp-sdk";
 import {
-  initCantonWalletSdk,
-  loadCantonWalletSdk,
+  loadActiveWalletSdk,
+  verifiedWalletAccounts,
+  selectWallet, restoreWalletSelection, rememberWalletSelection, forgetWalletSelection,
+  type WalletKind,
 } from "@/lib/canton-wallet-config";
+import { walletErrorMessage } from "@/lib/grofty-wallet";
 import { walletWait } from "@/lib/wallet-wait";
+import { DevNetTransactionApproval } from "../DevNetTransactionApproval";
 type Account = Awaited<ReturnType<typeof sdk.listAccounts>>[number];
 export type WalletSession = { partyId: string; hint?: string };
 interface Value {
@@ -20,14 +24,14 @@ interface Value {
   loading: boolean;
   busy: boolean;
   error: string;
-  connect(): Promise<void>;
+  connect(kind?: WalletKind): Promise<void>;
   disconnect(): Promise<void>;
 }
 const Context = createContext<Value | null>(null);
 export function primaryAccount(accounts: readonly Account[]) {
   return (
-    accounts.find((a) => a.primary && !a.disabled && a.status !== "removed") ??
-    accounts.find((a) => !a.disabled && a.status !== "removed")
+    accounts.find((a) => a.primary && !a.disabled && a.status === "allocated") ??
+    accounts.find((a) => !a.disabled && a.status === "allocated")
   );
 }
 export function WalletProvider({ children }: { children: ReactNode }) {
@@ -59,13 +63,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       try {
         const accounts = await walletWait(
           (async () => {
-            await initCantonWalletSdk();
-            const sdk = await loadCantonWalletSdk();
+            await restoreWalletSelection();
+            const sdk = await loadActiveWalletSdk();
             return (await sdk.isConnected()).isConnected
-              ? await sdk.listAccounts()
+              ? await verifiedWalletAccounts()
               : [];
           })(),
-          8000,
+          35000,
         );
         if (!busyRef.current) changed(accounts);
       } catch (e) {
@@ -82,24 +86,32 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!connected) return;
     let stopped = false;
-    const changed = (accounts: readonly Account[]) => {
-      if (!stopped) apply(accounts);
+    const changed = (_accounts: readonly Account[]) => {
+      void verifiedWalletAccounts().then(accounts => { if (!stopped) { apply(accounts); setError(""); } }).catch(e => {
+        if (!stopped) { setSession(null); setError(e instanceof Error ? e.message : String(e)); }
+      });
     };
-    void loadCantonWalletSdk()
+    let subscribedSdk: Awaited<ReturnType<typeof loadActiveWalletSdk>> | undefined;
+    const statusChanged = (status: sdk.StatusEvent) => {
+      if (!status.connection.isConnected) { if (!stopped) setSession(null); }
+      else changed([]);
+    };
+    void loadActiveWalletSdk()
       .then((sdk) => {
-        if (!stopped) return sdk.onAccountsChanged(changed);
+        if (!stopped) {
+          subscribedSdk = sdk;
+          return Promise.all([sdk.onAccountsChanged(changed), sdk.onStatusChanged(statusChanged)]);
+        }
       })
       .catch((e) => {
         if (!stopped) setError(e instanceof Error ? e.message : String(e));
       });
     return () => {
       stopped = true;
-      void loadCantonWalletSdk()
-        .then((sdk) => sdk.removeOnAccountsChanged(changed))
-        .catch(() => {});
+      if (subscribedSdk) void Promise.all([subscribedSdk.removeOnAccountsChanged(changed), subscribedSdk.removeOnStatusChanged(statusChanged)]).catch(() => {});
     };
   }, [connected]);
-  async function connect() {
+  async function connect(kind: WalletKind = "canton") {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
@@ -107,20 +119,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       if (!pendingConnection.current) {
         const pending = (async () => {
-          await initCantonWalletSdk();
-          const sdk = await loadCantonWalletSdk();
-          if (
-            !(await sdk.isConnected()).isConnected &&
-            !(await sdk.connect()).isConnected
-          )
+          await selectWallet(kind);
+          const sdk = await loadActiveWalletSdk();
+          // Explicit gateway selection must open that gateway even when the SDK
+          // previously restored a browser-extension session.
+          if ((kind === "gateway" || !(await sdk.isConnected()).isConnected) &&
+            !(await sdk.connect()).isConnected)
             throw new Error(
               "Connection cancelled. Choose a wallet to try again.",
             );
-          const accounts = await sdk.listAccounts();
+          const accounts = await verifiedWalletAccounts();
           if (!primaryAccount(accounts))
             throw new Error(
               "No active Canton account found. Choose an account in your wallet.",
             );
+          rememberWalletSelection();
           return accounts;
         })();
         pendingConnection.current = pending;
@@ -143,7 +156,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (mounted.current) apply(accounts);
     } catch (e) {
       if (mounted.current) {
-        const message = e instanceof Error ? e.message : String(e);
+        const message = walletErrorMessage(e);
         setError(
           /failed to fetch|networkerror/i.test(message)
             ? "Could not reach the selected wallet. Check its connection, then try again."
@@ -160,7 +173,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     setError("");
     try {
-      await (await loadCantonWalletSdk()).disconnect();
+      await walletWait((await loadActiveWalletSdk()).disconnect(), 10000);
+      forgetWalletSelection();
       setSession(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -173,6 +187,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       value={{ session, loading, busy, error, connect, disconnect }}
     >
       {children}
+      <DevNetTransactionApproval />
     </Context.Provider>
   );
 }

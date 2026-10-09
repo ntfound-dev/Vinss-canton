@@ -38,6 +38,7 @@ export default function RoomPage() {
   const peerInstallation = search.get("peerInstallation");
 
   const creator = search.get("mode") === "creator";
+  const bindingRequestId = search.get("bindingRequest");
 
   const [tab, setTab] = useState<RoomTab>("message");
 
@@ -50,7 +51,9 @@ export default function RoomPage() {
   const [roomTitle, setRoomTitle] = useState("Private conversation");
   const initialOfferValues = useJobOfferDraft(search.get("job"));
 
-  const [status, setStatus] = useState<CantonRoomStatus | "idle">("idle");
+  const [status, setStatus] = useState<CantonRoomStatus | "idle" | "error">("idle");
+  const [connectionProgress, setConnectionProgress] = useState("");
+  const [connectionAttempt, setConnectionAttempt] = useState(0);
 
   const [messages, setMessages] = useState<CantonRoomMessage[]>([]);
 
@@ -64,6 +67,7 @@ export default function RoomPage() {
     setMessages([]);
     setOffers([]);
     setError(null);
+    setConnectionProgress("");
     if (!peerParty || !peerInstallation || !walletParty) {
       setRuntime(null);
       setStatus("idle");
@@ -73,6 +77,7 @@ export default function RoomPage() {
     let disposed = false;
 
     let active: CantonRoomRuntime | undefined;
+    let connectionStatus: CantonRoomStatus = "connecting";
 
     void CantonRoomRuntime.connect({
       conversationId: params.roomId,
@@ -84,12 +89,19 @@ export default function RoomPage() {
       peerInstallationId: peerInstallation,
 
       creator,
-      ...(search.get("bindingRequest")
-        ? { bindingRequestId: search.get("bindingRequest")! }
+      ...(bindingRequestId
+        ? { bindingRequestId }
         : {}),
 
       onStatus(status) {
-        if (!disposed) setStatus(status);
+        connectionStatus = status;
+        // Group membership can be ready before the live subscription starts.
+        // Enable sending only after the complete runtime has connected.
+        if (!disposed && (status !== "ready" || active)) setStatus(status);
+      },
+
+      onProgress(message) {
+        if (!disposed) setConnectionProgress(message);
       },
 
       onMessages(incoming) {
@@ -131,9 +143,11 @@ export default function RoomPage() {
         active = connected;
 
         setRuntime(connected);
+        setStatus(connectionStatus);
       })
       .catch((cause: unknown) => {
         if (!disposed) {
+          setStatus("error");
           setError(errorText(cause));
         }
       });
@@ -143,12 +157,13 @@ export default function RoomPage() {
 
       active?.close();
     };
-  }, [creator, params.roomId, peerInstallation, peerParty, walletParty]);
+  }, [creator, params.roomId, peerInstallation, peerParty, walletParty, bindingRequestId, connectionAttempt]);
 
   useEffect(() => {
     if (!walletParty || !peerParty || !peerInstallation) return;
     const previous = readRooms(walletParty).find((r) => r.id === params.roomId);
     const title = previous?.title || "Private conversation";
+    const binding = bindingRequestId || previous?.bindingRequestId;
     setRoomTitle(title);
     rememberRoom(walletParty, {
       id: params.roomId,
@@ -157,9 +172,10 @@ export default function RoomPage() {
       peerInstallation,
       creator,
       updatedAt: Date.now(),
+      ...(binding ? { bindingRequestId: binding } : {}),
       ...(search.get("job") ? { jobId: search.get("job")! } : {}),
     });
-  }, [walletParty, params.roomId, peerParty, peerInstallation, creator]);
+  }, [walletParty, params.roomId, peerParty, peerInstallation, creator, bindingRequestId]);
 
   useEffect(() => {
     if (!runtime || !creator || status !== "waiting_peer") return;
@@ -322,7 +338,7 @@ export default function RoomPage() {
     await updateOffer(() => runtime.settleOffer(offer));
   }
 
-  const configured = Boolean(peerParty && peerInstallation && walletParty);
+  const configured = Boolean(peerParty && peerInstallation && walletParty && runtime);
 
   const peerLabel = peerInstallation
     ? shortId(peerInstallation)
@@ -368,6 +384,17 @@ export default function RoomPage() {
               style={{ marginBottom: 18 }}
             >
               {error}
+              {status === "error" && (
+                <button className="ui-button" type="button" onClick={() => setConnectionAttempt(n => n + 1)}>
+                  Retry private connection
+                </button>
+              )}
+            </div>
+          )}
+          {status === "connecting" && (
+            <div className="ui-alert info" role="status" style={{ marginBottom: 18 }}>
+              {connectionProgress || "Preparing your private connection…"}
+              <p className="small">You can write a draft now. Sending becomes available when the encrypted connection is ready.</p>
             </div>
           )}
           {status === "waiting_peer" && (
@@ -378,6 +405,7 @@ export default function RoomPage() {
             >
               Waiting for the other participant to open the room. Your
               connection will update automatically.
+              <p className="small">If both rooms are open, complete any remaining transaction approvals on the creator’s side.</p>
             </div>
           )}
           <div
@@ -488,6 +516,8 @@ export default function RoomPage() {
               <p>Peer Party: {peerParty}</p>
               <p>Peer Installation: {peerInstallation}</p>
               <p>Role: {creator ? "Creator" : "Joiner"}</p>
+              <p>Connection stage: {connectionProgress || status}</p>
+              {error && <p>Latest error: {error}</p>}
             </div>
           </details>
         </>

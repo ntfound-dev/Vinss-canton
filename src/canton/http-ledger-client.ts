@@ -460,8 +460,10 @@ export class HttpCantonLedgerClient
       return [];
     }
 
-    const responses =
-      await this.requestJson<
+    let responses: readonly unknown[];
+
+    try {
+      responses = await this.requestJson<
         readonly unknown[]
       >(
         "/v2/updates",
@@ -497,6 +499,22 @@ export class HttpCantonLedgerClient
           }),
         },
       );
+    } catch (error) {
+      if (!(error instanceof Error) ||
+          !/\bPARTICIPANT_PRUNED_DATA_ACCESSED\b/.test(error.message)) {
+        throw error;
+      }
+
+      // A fresh messaging cursor starts at zero, which can precede retention
+      // on a shared participant. Recover retained deliveries/messages from a
+      // current, party-filtered ACS instead of repeatedly reading pruned history.
+      // Preserve original event offsets: MLS must process welcome/commit/message
+      // in ledger order. Archived history cannot be recovered by this fallback.
+      const snapshot = await this.queryActiveContractsSnapshot(party);
+      return snapshot.contracts
+        .filter((contract) => contract.offset > afterExclusive)
+        .sort((a, b) => a.offset < b.offset ? -1 : a.offset > b.offset ? 1 : 0);
+    }
 
     const result:
       CantonCreatedContract[] =

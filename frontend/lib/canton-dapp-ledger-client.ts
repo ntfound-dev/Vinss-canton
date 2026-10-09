@@ -2,7 +2,9 @@ import type * as cantonSdk from "@canton-network/dapp-sdk";
 
 import {
   initCantonWalletSdk,
-  loadCantonWalletSdk,
+  loadActiveWalletSdk,
+  verifiedWalletAccounts,
+  selectedWalletKind,
 } from "./canton-wallet-config";
 
 import { HttpCantonLedgerClient } from "../../src/canton/http-ledger-client.js";
@@ -38,9 +40,9 @@ export class CantonDappLedgerClient implements CantonLedgerClient {
   static async connect(
     expectedParty?: string,
   ): Promise<CantonDappLedgerClient> {
-    await initCantonWalletSdk();
+    if (selectedWalletKind() !== "devnet") await initCantonWalletSdk();
 
-    const connection = await (await loadCantonWalletSdk()).isConnected();
+    const connection = await (await loadActiveWalletSdk()).isConnected();
 
     if (!connection.isConnected) {
       throw new Error(
@@ -48,7 +50,7 @@ export class CantonDappLedgerClient implements CantonLedgerClient {
       );
     }
 
-    const accounts = await (await loadCantonWalletSdk()).listAccounts();
+    const accounts = await verifiedWalletAccounts();
 
     const primary = selectPrimaryAccount(accounts);
 
@@ -68,7 +70,7 @@ export class CantonDappLedgerClient implements CantonLedgerClient {
   }
 
   async getAuthenticatedIdentity(): Promise<CantonAuthenticatedIdentity> {
-    const accounts = await (await loadCantonWalletSdk()).listAccounts();
+    const accounts = await verifiedWalletAccounts();
 
     const primary = selectPrimaryAccount(accounts);
 
@@ -144,13 +146,14 @@ function selectPrimaryAccount(
 }
 
 function isUsableAccount(account: WalletAccount): boolean {
-  return account.status !== "removed" && account.disabled !== true;
+  return account.status === "allocated" && account.disabled !== true;
 }
 
 const walletGatewayFetch: typeof globalThis.fetch = async (
   input,
   init,
 ): Promise<Response> => {
+  await verifiedWalletAccounts();
   const url = requestUrl(input);
 
   const parsed = new URL(url);
@@ -180,7 +183,7 @@ const walletGatewayFetch: typeof globalThis.fetch = async (
   }
 
   const result = await (
-    await loadCantonWalletSdk()
+    await loadActiveWalletSdk()
   ).ledgerApi({
     requestMethod: method,
 
@@ -246,7 +249,7 @@ async function executeWithWallet(value: unknown): Promise<Response> {
   } as Parameters<typeof cantonSdk.prepareExecuteAndWait>[0];
 
   const executed = await (
-    await loadCantonWalletSdk()
+    await loadActiveWalletSdk()
   ).prepareExecuteAndWait(params);
 
   return jsonResponse({

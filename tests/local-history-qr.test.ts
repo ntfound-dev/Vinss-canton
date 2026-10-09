@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
-import QRCode from "../frontend/node_modules/qrcode/lib/index.js";
+import QRCode from "qrcode";
 import jsQR from "jsqr";
 import { IndexedDbPlaintextStore } from "../src/messaging/local/plaintext-store.js";
 import {

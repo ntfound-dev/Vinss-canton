@@ -61,11 +61,13 @@ export class CantonPollingUpdateStream implements CantonUpdateStream {
         const snapshot = await this.options.ledger.queryActiveContractsSnapshot(
           input.party,
         );
+        if (closed) return;
 
         const created = await this.options.ledger.queryCreatedContractsSince(
           input.party,
           cursor,
         );
+        if (closed) return;
 
         const ordered = [...created]
           .filter((contract) => contract.offset > cursor)
@@ -98,7 +100,7 @@ export class CantonPollingUpdateStream implements CantonUpdateStream {
           cursor = snapshot.offset;
         }
       } catch (cause) {
-        input.onError?.(toError(cause));
+        if (!closed) input.onError?.(toError(cause));
       } finally {
         polling = false;
 

@@ -35,7 +35,8 @@ export function OfferCard({
   const state = escrowState(o),
     life = o.lifecycle ?? (o.status === "accepted" ? "accepted" : "proposal"),
     expired = o.status === "pending" && Date.parse(o.expiresAt) <= Date.now();
-  const canSubmit = o.own && o.status === "accepted" && life === "accepted",
+  const needsFunding = Boolean(o.instrumentAdmin) && o.status === "accepted" && life === "accepted" && !o.escrowContractId;
+  const canSubmit = o.own && o.status === "accepted" && life === "accepted" && !needsFunding,
     canReview = !o.own && o.status === "accepted" && life === "submitted",
     canRevise =
       o.own && o.status === "accepted" && life === "revision_requested",
@@ -129,6 +130,14 @@ export function OfferCard({
             </div>
           )}
         </>
+      )}
+      {needsFunding && !o.own && (
+        <div className="stack offer-foot">
+          <p>Agreement accepted. Funding is still required before work can be submitted.</p>
+          <button className="ui-button primary" disabled={busy} onClick={() => void onAccept(o)}>
+            {busy ? "Waiting for wallet…" : "Retry escrow funding"}
+          </button>
+        </div>
       )}
       {(canSubmit || canRevise) && (
         <>
