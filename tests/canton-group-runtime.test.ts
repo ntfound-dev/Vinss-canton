@@ -235,6 +235,12 @@ it("real WASM runtime admits two wallet-bound guests and delivers group messages
   );
   expect(recoveredReads).toBeGreaterThan(readsBeforeRetentionAdvanced);
   bobPrivate.close();
+  // Recover without a saved live offset while keeping MLS and plaintext
+  // checkpoints: the ACS bootstrap must not emit the same history twice.
+  storage.delete([
+    `vinss-canton:devnet:${privateId}`, "ledger", "Bob",
+    encodeURIComponent(installationFor("wallet:Bob")),
+  ].join(":"));
   privateMessages.set("Bob", []);
   bobPrivate = await privateRoom("Bob");
   expect(privateMessages.get("Bob")?.map((m) => m.id)).toEqual([

@@ -38,6 +38,8 @@ After applying and deploying this update, use the existing room without clearing
 
 Official reference: [Digital Asset Ledger API StateService and pruning constraints](https://docs.digitalasset.com/build/3.4/reference/lapi-proto-docs.html).
 
+The owner's Termux run then reported **123 passes and one failure**: two restored text IDs were emitted twice. This was reproduced locally by retaining MLS/plaintext state while removing only the live offset in the test fixture. The follow-up fixes callback deduplication in the actual runtime without relaxing the exact two-ID assertion. Two additional regression cases ensure a closed polling subscription does not dispatch an in-flight result/error or reschedule. The complete follow-up suite passes **126 tests in 32 files**, both TypeScript checks, and the production build locally; owner Termux and live-browser verification remain required.
+
 ### First gate: browser-only DevNet login
 
 1. Deploy the update to **Production** with the server session key configured. Open `https://vinss-canton.vercel.app/connect-test` in a full desktop or Android browser.

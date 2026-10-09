@@ -333,6 +333,7 @@ export function loadOpenMls(): Promise<OpenMlsWasmModule> {
 
 export class CantonRoomRuntime {
   #subscription: CantonUpdateSubscription | undefined;
+  #closed = false;
   #queue: Promise<unknown> = Promise.resolve();
   private serialize<T>(work: () => Promise<T>): Promise<T> {
     const next = this.#queue.then(work, work);
@@ -552,11 +553,12 @@ export class CantonRoomRuntime {
       : "Waiting for the creator’s encrypted welcome…");
     await runtime.serialize(() => runtime.prepare());
 
+    const deliveredMessageIds = new Set<string>();
     const consume = async (
       conversationId: string,
       messages: readonly PlainMessage[],
     ) => {
-      if (conversationId !== input.conversationId) {
+      if (runtime.#closed || conversationId !== input.conversationId) {
         return;
       }
 
@@ -564,10 +566,12 @@ export class CantonRoomRuntime {
         .map((message) => toRoomMessage(message, installationId))
         .filter(
           (message): message is CantonRoomMessage => message !== undefined,
-        );
+        )
+        .filter((message) => !deliveredMessageIds.has(message.id));
 
       if (visible.length > 0) {
         input.onMessages(visible);
+        for (const message of visible) deliveredMessageIds.add(message.id);
       }
 
       const offers: CantonRoomOffer[] = [];
@@ -594,12 +598,11 @@ export class CantonRoomRuntime {
       }
 
       if (offers.length > 0) {
-        input.onOffers?.(
-          await hydrateOffers(offers, ledger, directory.activeParty()),
-        );
+        const hydrated = await hydrateOffers(offers, ledger, directory.activeParty());
+        if (!runtime.#closed) input.onOffers?.(hydrated);
       }
 
-      if (actions.length > 0) {
+      if (!runtime.#closed && actions.length > 0) {
         input.onDealActions?.(actions);
       }
     };
@@ -611,6 +614,7 @@ export class CantonRoomRuntime {
     runtime.#subscription = await live.start({
       onMessages: consume,
       async onLedgerOffset() {
+        if (runtime.#closed) return;
         if (input.creator) await runtime.serialize(() => runtime.prepare());
         else await runtime.refreshStatus();
 
@@ -623,7 +627,9 @@ export class CantonRoomRuntime {
         );
       },
 
-      onError: input.onError,
+      onError(error) {
+        if (!runtime.#closed) input.onError(error);
+      },
     });
 
     await runtime.refreshStatus();
@@ -1186,6 +1192,7 @@ export class CantonRoomRuntime {
   }
 
   close(): void {
+    this.#closed = true;
     this.#subscription?.close();
 
     this.#subscription = undefined;

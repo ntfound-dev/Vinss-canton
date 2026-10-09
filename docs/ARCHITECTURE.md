@@ -79,6 +79,8 @@ The HTTP ledger reader recovers `PARTICIPANT_PRUNED_DATA_ACCESSED` on an update-
 
 The private-room UI displays initialization stages, permits composing a local draft before encryption is ready, and enables sending only after the runtime and membership are ready. A failed initialization shows an explicit retry. A draft remains in the mounted page during retry; it is not persisted across refresh. Recent-room metadata preserves the invite's signed key-package binding request.
 
+Each private-room runtime delivers a text message ID to its callback once, including when local history and ACS bootstrap overlap. Offers and actions still rehydrate on ledger updates because their lifecycle can change. Closing a runtime suppresses late message/error callbacks, and closing its polling subscription discards in-flight read results and errors instead of dispatching or rescheduling them.
+
 ## Deal & Escrow (Rekber)
 
 The [escrow guide](ESCROW.md) maps every template, authorized actor and funding check in this workflow.
