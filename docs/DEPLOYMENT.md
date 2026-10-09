@@ -30,7 +30,18 @@ npx vercel --prod
 
 Confirm the CLI prints **Production**, **Aliased https://vinss-canton.vercel.app** and **Ready**. Vercel Production/Preview and Canton MainNet/DevNet are separate configuration choices. A Production website can use Canton DevNet. Preview and Production variables can differ; configure and rebuild the environment being tested. Vercel Authentication may restrict unauthenticated testers; the project owner controls that setting.
 
-The DevNet gateway requirement is in [Wallet setup](WALLET_SETUP.md#hackcanton-devnet-access). Neither a successful deploy nor a visible Send Connect extension supplies a DevNet signing provider. The sandbox web wallet is not a verified CIP-103 endpoint. Obtain the gateway URL from the operator, configure `NEXT_PUBLIC_CANTON_WALLET_GATEWAY_URL`, and verify actual approval, Party ID and ledger read after deployment.
+For **HackCanton DevNet** browser login, keep `NEXT_PUBLIC_CANTON_NETWORK=devnet` and configure a server-only random 32-byte session key. From Termux, generate it directly into Vercel's prompt without printing it:
+
+```bash
+node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))' | npx vercel env add VINSS_DEVNET_SESSION_SECRET production
+npx vercel --prod
+```
+
+Create the variable once. If it already exists, retain the existing random value; key rotation invalidates sessions. Configure Preview separately if testing a preview. Never use `NEXT_PUBLIC_` for this key, passwords or tokens. The default public OIDC client is `web-app-ui-hackcanton-01-devnet`; use server-only `CANTON_DEVNET_OIDC_CLIENT_ID` only for an operator-confirmed replacement. No shared bearer token is configured. Direct password grant must be permitted by the client; if rejected, the UI offers the user's own DevNet access token. A future authorization-code/PKCE route requires registered application redirect URLs and is not implemented here.
+
+After Production is Ready and aliased, use **HackCanton DevNet** at `/connect-test`, verify the full authorized Party ID, then **Check ledger access**. Reload and disconnect/reconnect. This uses NODERS hosted sandbox authorization, not external signing. Actual login with the owner's account was not available during this patch.
+
+A CIP-103 Wallet Gateway remains a separate option; configure its operator-supplied URL as `NEXT_PUBLIC_CANTON_WALLET_GATEWAY_URL`. The NODERS web-wallet origin is not itself that endpoint. Installing Send does not supply DevNet access. See [Wallet setup](WALLET_SETUP.md).
 
 Use a preview first. Promote only a reviewed build whose wallet and ledger configuration matches the intended network. Real-funds MainNet transactions/DAR deployment are outside this change's authorization.
 

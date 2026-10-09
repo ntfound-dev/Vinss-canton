@@ -17,6 +17,9 @@ import { HttpCantonOfferProvider } from "../../src/canton/http-offer-provider.js
 import { StaticCantonRegistryDirectory } from "../../src/canton/registry-directory.js";
 
 import { CantonTokenWallet } from "../../src/canton/token-wallet.js";
+import { HttpCantonTokenRegistryClient } from "../../src/canton/token-registry-client.js";
+import { selectedWalletKind } from "./canton-wallet-config";
+import { devNetWallet, devNetRegistryFetch } from "./devnet-wallet";
 
 import {
   isCantonDealTemplate,
@@ -124,6 +127,7 @@ function registrarRegistryUrl(
 }
 
 function configuredCcAdmin(): string | undefined {
+  if (selectedWalletKind() === "devnet" && devNetWallet.ccAdmin()) return devNetWallet.ccAdmin();
   const value = process.env.NEXT_PUBLIC_CANTON_CC_ADMIN?.trim();
 
   if (value) {
@@ -154,7 +158,7 @@ function configuredCantonRegistryEntries(): Record<string, string> {
 
   if (ccAdmin) {
     entries[ccAdmin] =
-      process.env.NEXT_PUBLIC_CANTON_CC_REGISTRY_URL?.trim() ||
+      (selectedWalletKind() === "devnet" ? "https://validator-api-http.validator.hackcanton-01.devnet.naas.noders.services/api/validator/v0/scan-proxy" : process.env.NEXT_PUBLIC_CANTON_CC_REGISTRY_URL?.trim()) ||
       `${network.scanUrl}/registry/`;
   }
 
@@ -519,6 +523,7 @@ export class CantonRoomRuntime {
       registryDirectory: new StaticCantonRegistryDirectory(
         configuredCantonRegistryEntries(),
       ),
+      ...(selectedWalletKind() === "devnet" ? { registryClientFactory: (baseUrl: string) => new HttpCantonTokenRegistryClient({ baseUrl, fetcher: devNetRegistryFetch }) } : {}),
     });
 
     const runtime = new CantonRoomRuntime(

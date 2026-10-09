@@ -521,10 +521,13 @@ instrumentAdmin = DSO::<...>
 - VINSS references a Token Standard Allocation; it does not custody user funds itself.
 - Authentication credentials are runtime secrets and must never be committed.
 - Browser transaction signing should remain delegated to a compatible Canton wallet/signing provider.
+- The new HackCanton DevNet sign-in route instead uses each user's authorized node-hosted sandbox Party with explicit VINSS approvals. It is not external wallet signing or a new self-custody proof; see [Architecture](ARCHITECTURE.md).
 
 ## Current-release verification (2026-10-09)
 
 No fresh network execution was performed during the readiness patch. The historical identifiers above were preserved as repository evidence and were not re-queried in this session. They identify Amulet/CC, not cBTC. The current browser wallet approval and full two-user cBTC run are still outstanding.
+
+The browser now integrates this runbook's fixed NODERS HTTP Ledger API through `/api/devnet`: own-account login, authenticated user/CanActAs discovery, Party selection, read-only diagnostics and explicit approval before commands. It also routes explicitly selected CC to the authenticated validator registry and discovers its current DSO. Unit tests use mocked upstream responses and do not add live transaction evidence. The public OIDC client probe with empty credentials returned `401 invalid_grant`; this only shows that the client reached credential validation, not a successful login. Owner login, two separate participants and the recorded receipt must still be checked on the deployed build.
 
 To reproduce cBTC execution, use two authorized test wallets on the same selected network and follow [TESTING.md](TESTING.md). Confirm the network's actual CBTC instrument/admin and registrar before allocation. Record proposal, acceptance, allocation, funding, delivery, approval and settlement update IDs, allocation CID, receipt CID, receiver Holding CID/amount/admin/instrument and unlocked state. Do not replace CBTC with Amulet and call the outcome cBTC evidence.
 

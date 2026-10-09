@@ -1,13 +1,16 @@
 import { discoverGrofty, networkMatches } from "./grofty-wallet";
 import type * as CantonSdk from "@canton-network/dapp-sdk";
 import { applicationNetwork, compatibleWalletEntries, configuredWalletGateway } from "./canton-wallet-policy";
+import { devNetWallet } from "./devnet-wallet";
 let sdkPromise: Promise<typeof CantonSdk> | undefined;
-export type WalletKind = "canton" | "grofty" | "gateway";
+export type WalletKind = "canton" | "grofty" | "gateway" | "devnet";
 let selected: WalletKind = "canton";
 let canton: CantonSdk.DappSDK | undefined;
 let grofty: Awaited<ReturnType<typeof discoverGrofty>> | undefined;
 export async function selectWallet(kind: WalletKind) {
-  if (kind === "grofty") {
+  if (kind === "devnet") {
+    if (applicationNetwork() !== "devnet") throw new Error("HackCanton sandbox login is available only on DevNet.");
+  } else if (kind === "grofty") {
     const found = await discoverGrofty();
     const probe = await found.status();
     const expected = expectedNetwork();
@@ -25,6 +28,7 @@ export async function restoreWalletSelection() {
   let saved: string | null = null;
   try { saved = localStorage.getItem("vinss.wallet.kind"); } catch {}
   if (saved === "grofty") await selectWallet("grofty");
+  else if (saved === "devnet") await selectWallet("devnet");
   else if (saved === "gateway") await selectWallet("gateway");
   else await initCantonWalletSdk();
 }
@@ -35,8 +39,9 @@ export function forgetWalletSelection() {
   try { localStorage.removeItem("vinss.wallet.kind"); } catch {}
 }
 export async function loadActiveWalletSdk() {
-  return selected === "grofty" && grofty ? grofty : canton ?? loadCantonWalletSdk();
+  return selected === "devnet" ? devNetWallet : selected === "grofty" && grofty ? grofty : canton ?? loadCantonWalletSdk();
 }
+export function selectedWalletKind(): WalletKind { return selected; }
 let initPromise: Promise<void> | undefined;
 export function loadCantonWalletSdk() {
   return (sdkPromise ??= import("@canton-network/dapp-sdk").catch((error) => {

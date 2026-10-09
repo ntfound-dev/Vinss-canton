@@ -24,21 +24,23 @@ Live messaging requires existing isolated user credentials and explicit opt-in; 
 
 ## Current local record (2026-10-09)
 
-The DevNet routing update passes both TypeScript checks, **97 tests in 29 files**, and the Next.js production build. HTTP smoke checks return 200 for Home, `/connect-test`, `/invite/new`, `/rooms`, `/jobs`, and `/deals`; rendered diagnostics show the network/gateway setup state. Added tests cover network filtering, missing gateway errors before wallet approval, dedicated gateway selection despite installed extensions, preservation of TestNet/MainNet paths, and retry after SDK initialization failure. These use mocks and do not prove live wallet authorization. Interactive desktop/Android verification of this patch was not completed; a local Chromium download failed in this environment.
+The DevNet session update passes both TypeScript checks and **118 tests in 31 files**. Tests cover encrypted session isolation/purpose/tampering/expiry, inactive users, missing CanActAs rights, authorized Party selection, same-origin/DevNet restrictions, read/registry endpoint restrictions, approved command binding, rejection without submission and missing receipt failure. Upstream authentication, ledger rights and transaction receipts are mocked: these tests are not live login or settlement evidence. The bundled real OpenMLS tests still use a simulated ledger.
 
-DevNet browser acceptance: open the updated production `/connect-test`; the chooser must not offer Send Connect for DevNet. With no configured gateway and only Send installed, **Other DevNet wallets** must show a readable error without opening Send approval. **DevNet wallet** remains unavailable until the operator supplies a real gateway. With that endpoint configured, approve there, verify the correct Party ID, read the ledger offset, reload, then disconnect/reconnect. That second phase is externally blocked and has not been completed. See [Wallet setup](WALLET_SETUP.md#hackcanton-devnet-access).
+Next.js production build passes. HTTP smoke checks return 200 for Home, `/connect-test`, `/invite/new`, `/rooms`, `/jobs`, `/deals` and unauthenticated `/api/devnet`. Login with a missing session key returns 503 before forwarding credentials. No owner credentials were available, so browser Party retrieval and a new receipt remain outstanding. Daml/Rust toolchains are absent in this environment; their CI results must be checked after push. A local Chromium download failed and the cloud browser could not reach the local build (`ERR_CONNECTION_REFUSED`); no interactive browser approval was completed here. No fresh CBTC/BitSafe Gold network execution was performed.
 
-- Root and frontend TypeScript: passed.
-- Vitest: 76 tests passed across 26 files, including wallet boundary/network tests and allocation recovery tests.
-- Next.js production build: passed; routes include `/connect-test`, invites, rooms, jobs and deals.
-- Real bundled OpenMLS WASM with simulated ledger: passed two-person, three-member, reload, ordering, ciphertext and member-removal scenarios (10 messages). No live network claim.
-- Daml compiler and Rust toolchain: absent in this execution environment; not locally run. Consult PR workflow runs for their results.
-- Browser production connection: picker opened; this test browser blocked access to the SDK's blob popup. No Party retrieval or approval verified.
-- Fresh cBTC settlement and DecMan deployment: not run; infrastructure/wallet authorization absent.
+### First gate: browser-only DevNet login
+
+1. Deploy the update to **Production** with the server session key configured. Open `https://vinss-canton.vercel.app/connect-test` in a full desktop or Android browser.
+2. Confirm `devnet` and sandbox login `available`. Choose **HackCanton DevNet** (not Send Connect), enter your own HackCanton account, and select your own authorized Party if there is more than one.
+3. Verify the full Party ID, then press **Check ledger access**. Record the actual offset. This step submits no transaction.
+4. Reload: the same verified Party should restore. Disconnect and reconnect. Check one invalid login produces a readable failure without a Party.
+5. Create an invite; when a Daml action needs approval, reject once and verify no submission. Retry and approve explicitly. Keep the creator page open for the second user. Record real update/contract IDs.
+
+If login is rejected by Keycloak, do not change the app network. Verify wallet onboarding and the allowed OIDC client with the operator; the form also accepts your own fresh DevNet access token. If the Party has no CanActAs rights, get that user's own Party rights corrected. The sandbox route is node-hosted authorization, not an externally signing wallet.
 
 ## Browser-only acceptance (two users)
 
-Use two separate browser profiles/devices with allocated, compatible wallets on the SAME non-production network. Keep one active room tab per installation. Use test cBTC only; do not silently switch to CC.
+Use two separate browser profiles/devices with separate authorized DevNet accounts or compatible wallets on the SAME non-production network. Keep one active room tab per installation. Use test cBTC only; do not silently switch to CC.
 
 1. Open `/connect-test`. Connect/approve, choose the correct primary account and confirm full Party ID. Press **Check ledger access**; verify an offset. Reject a connection once, then retry. Reload, disconnect and reconnect.
 2. Creator opens Home → Create invite → Private deal. Share the full link or download/scan QR. Keep the original invite page open.

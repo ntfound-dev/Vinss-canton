@@ -3099,3 +3099,8 @@ h4 {
 .wallet-dialog-error p {
   margin: 0 0 8px;
 }
+.devnet-login .field input, .devnet-login .field textarea, .devnet-login .field select { width: 100%; min-width: 0; font-size: 16px; }
+.devnet-login { margin: 20px 0; }
+.devnet-login summary { cursor: pointer; font-size: 14px; margin-bottom: 8px; }
+.devnet-commands { max-height: 240px; overflow: auto; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.wallet-popover select { max-width: 100%; }

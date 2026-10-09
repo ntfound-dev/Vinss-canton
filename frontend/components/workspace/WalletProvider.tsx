@@ -16,6 +16,7 @@ import {
 } from "@/lib/canton-wallet-config";
 import { walletErrorMessage } from "@/lib/grofty-wallet";
 import { walletWait } from "@/lib/wallet-wait";
+import { DevNetTransactionApproval } from "../DevNetTransactionApproval";
 type Account = Awaited<ReturnType<typeof sdk.listAccounts>>[number];
 export type WalletSession = { partyId: string; hint?: string };
 interface Value {
@@ -68,7 +69,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               ? await verifiedWalletAccounts()
               : [];
           })(),
-          8000,
+          35000,
         );
         if (!busyRef.current) changed(accounts);
       } catch (e) {
@@ -186,6 +187,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       value={{ session, loading, busy, error, connect, disconnect }}
     >
       {children}
+      <DevNetTransactionApproval />
     </Context.Provider>
   );
 }

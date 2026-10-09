@@ -6,7 +6,7 @@ VINSS brings two people into one private room to negotiate, agree on an offer, f
 
 [Open the app](https://vinss-canton.vercel.app) · [Pitch deck](docs/vinss-deck.pdf) · [Submission materials](docs/README.md) · [Demo and evidence](docs/SUBMISSION.md)
 
-**DevNet wallet connection is still externally blocked.** Send Connect supports MainNet/TestNet and Grofty supports MainNet. The current DevNet deployment needs a compatible wallet or an operator-supplied CIP-103 Wallet Gateway. The chooser excludes those incompatible releases on DevNet, offers a dedicated configured gateway, and reports missing access instead of opening Send Connect. The HackCanton NODERS web wallet is not itself the gateway endpoint. See [Wallet setup](docs/WALLET_SETUP.md#hackcanton-devnet-access) before claiming a working browser connection.
+**HackCanton DevNet login now has a browser route.** Choose **HackCanton DevNet**, sign in with your own HackCanton account, and select an authorized Party. The server verifies the ledger user and `CanActAs` rights and requires explicit in-app approval for each transaction. This uses the NODERS hosted sandbox Party and HTTP Ledger API, not external wallet signing. Configure the server session key before deploying. Real account login and two-user acceptance still need verification. Grofty and the Canton SDK/gateway/WalletConnect routes remain available on compatible networks; Send Connect is excluded on DevNet. See [Wallet setup](docs/WALLET_SETUP.md).
 
 ## The problem
 
@@ -62,7 +62,7 @@ Content encryption does not hide ledger metadata. Local plaintext history is not
 | Sample jobs and `/demo` | Simulated UI previews | No real escrow or token transfers |
 | Points, VIP and multichain | Planned | No points issuance, subscription billing or additional chain runtime |
 
-The 2026-10-09 local suite passed **76 tests across 26 files**. Wallet authorization, fresh cBTC settlement and BitSafe Gold deployment remain unverified; see [Testing](docs/TESTING.md) and [BitSafe Gold](docs/BITSAFE_GOLD.md). Its messaging scenario checks real encryption, two-way delivery, groups, history reload and ciphertext-only message contracts. These results are local verification; they do not establish a new live Canton messaging run. The recorded DevNet escrow settlement is separate evidence.
+The DevNet session update passes **118 tests across 31 files**. These include mocked authentication/rights, encrypted sessions, selected-Party restrictions, transaction approval/rejection and receipt checks. Real user login, fresh cBTC settlement and BitSafe Gold deployment remain unverified; see [Testing](docs/TESTING.md) and [BitSafe Gold](docs/BITSAFE_GOLD.md). OpenMLS scenarios use real encryption with a simulated ledger. The recorded DevNet CC escrow settlement is separate evidence.
 
 ## Documentation map
 
@@ -90,7 +90,7 @@ cp frontend/.env.example frontend/.env.local
 npm run dev --prefix frontend
 ```
 
-Configure a compatible wallet/network using [Wallet setup](docs/WALLET_SETUP.md), then visit `/connect-test`. A hosted gateway or configured WalletConnect project is needed when the browser has no compatible CIP-103 extension. No public wallet credentials are bundled.
+Configure the DevNet server session key or a compatible wallet/network using [Wallet setup](docs/WALLET_SETUP.md), then visit `/connect-test`. HackCanton DevNet login works through a web form; a hosted gateway or WalletConnect provider remains a separate option. No shared account credentials are bundled.
 
 [Deployment](docs/DEPLOYMENT.md) covers Vercel and participant/DAR dependencies. [Testing](docs/TESTING.md) includes automated commands and a browser-only acceptance walkthrough. [BitSafe Gold](docs/BITSAFE_GOLD.md) records the missing DecMan integration and deployment evidence. The current branch is a readiness fix, not proof that all live readiness gates passed.
 

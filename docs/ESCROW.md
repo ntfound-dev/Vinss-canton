@@ -99,6 +99,8 @@ The provider's existing filename includes `offer`, but its implementation handle
 
 ## Funding recovery
 
+HackCanton DevNet sign-in uses the same HTTP Ledger API as the historical CC runbook, with each user's own ledger authorization and an in-app approval for every submission. It is a NODERS hosted sandbox Party, not external wallet signing. Its CC registry calls use the authenticated scan proxy and live DSO discovery. Choose **CC** explicitly for that workflow; CBTC still uses its own registry and needs CBTC holdings. A successful CC run must never be presented as CBTC execution.
+
 If acceptance succeeds but funding fails, the ledger retains `DealAgreement`. Room history is hydrated from active contracts after ledger updates and refresh. The payer can press **Retry escrow funding**. Runtime first resolves the active agreement and checks its recorded terms against the encrypted offer; it does not exercise the archived proposal again.
 
 Before allocating new holdings, the token wallet queries existing allocations and reuses a live allocation matching deal ID, sender, receiver, executor, instrument/admin, exact decimal amount and settlement deadline. `FundEscrow` still validates the allocation on-ledger. Rejected/expired/wrong-party allocations are not accepted for recovery. This avoids locking a second allocation after the first succeeded and funding failed. Pending or concurrent submissions still require ledger reconciliation; this is not a general transaction outbox or concurrency guarantee.

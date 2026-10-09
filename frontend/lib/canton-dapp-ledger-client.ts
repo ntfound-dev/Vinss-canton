@@ -4,6 +4,7 @@ import {
   initCantonWalletSdk,
   loadActiveWalletSdk,
   verifiedWalletAccounts,
+  selectedWalletKind,
 } from "./canton-wallet-config";
 
 import { HttpCantonLedgerClient } from "../../src/canton/http-ledger-client.js";
@@ -39,7 +40,7 @@ export class CantonDappLedgerClient implements CantonLedgerClient {
   static async connect(
     expectedParty?: string,
   ): Promise<CantonDappLedgerClient> {
-    await initCantonWalletSdk();
+    if (selectedWalletKind() !== "devnet") await initCantonWalletSdk();
 
     const connection = await (await loadActiveWalletSdk()).isConnected();
 
