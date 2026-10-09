@@ -15,7 +15,7 @@ export interface ConversationProps {
   draft: string;
   busy: boolean;
   configured: boolean;
-  status: CantonRoomStatus | "idle";
+  status: CantonRoomStatus | "idle" | "error";
   peerLabel: string;
   initialOfferValues?: Record<string, string>;
   onEscrow?(): void;
@@ -72,12 +72,14 @@ export function CantonConversationPanel(p: ConversationProps) {
               ? "Encrypted conversation"
               : p.status === "waiting_peer"
                 ? "Waiting for the other participant"
+                : p.status === "error"
+                  ? "Connection failed. Retry above."
                 : "Preparing your private connection"}
           </span>
         </div>
         <span className="badge">
           <Icon name="shield" />
-          {ready ? "Private" : "Connecting"}
+          {ready ? "Private" : p.status === "error" ? "Connection failed" : "Connecting"}
         </span>
       </div>
       <div
@@ -97,12 +99,18 @@ export function CantonConversationPanel(p: ConversationProps) {
             <h3>
               {ready
                 ? "Say hello. Start something."
+                : p.status === "error"
+                  ? "Your private connection needs attention."
                 : "Your private room is getting ready."}
             </h3>
             <p>
               {ready
                 ? "Messages and offers stay in this private conversation. Create an offer whenever you’re ready."
-                : "Both participants need to open the room to establish the encrypted connection."}
+                : p.status === "error"
+                  ? "Review the error above and retry. Your draft stays here."
+                  : p.status === "waiting_peer"
+                    ? "Keep both rooms open and complete any remaining transaction approvals."
+                    : "Preparing encryption keys and synchronizing with Canton. You can write a draft while you wait."}
             </p>
           </div>
         )}
@@ -158,11 +166,11 @@ export function CantonConversationPanel(p: ConversationProps) {
           value={p.draft}
           onChange={(e) => p.onDraftChange(e.target.value)}
           onKeyDown={keyDown}
-          disabled={!ready || p.busy}
+          disabled={p.busy}
           placeholder={
             ready
               ? "Write a private message…"
-              : "Waiting for a private connection…"
+              : "Write a draft while connecting…"
           }
         />
         <div className="composer-actions">

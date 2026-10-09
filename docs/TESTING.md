@@ -28,6 +28,16 @@ The DevNet session update passes both TypeScript checks and **118 tests in 31 fi
 
 Next.js production build passes. HTTP smoke checks return 200 for Home, `/connect-test`, `/invite/new`, `/rooms`, `/jobs`, `/deals` and unauthenticated `/api/devnet`. Login with a missing session key returns 503 before forwarding credentials. No owner credentials were available, so browser Party retrieval and a new receipt remain outstanding. Daml/Rust toolchains are absent in this environment; their CI results must be checked after push. A local Chromium download failed and the cloud browser could not reach the local build (`ERR_CONNECTION_REFUSED`); no interactive browser approval was completed here. No fresh CBTC/BitSafe Gold network execution was performed.
 
+### Pruning and chat recovery update (2026-10-10)
+
+The owner supplied production screenshots showing an authorized HackCanton DevNet Party and two room views failing with `PARTICIPANT_PRUNED_DATA_ACCESSED`. One view reported encrypted membership while its ledger reads failed; that badge does not prove successful message delivery.
+
+The update recovers pruned update ranges from current Party-filtered active contracts, preserving original offset order. Six regression tests cover fresh and saved cursors, direct HTTP and wallet-forwarded pruning errors, authorization failures, failed recovery snapshots, and normal retained update reads. The real bundled WASM integration now simulates participant pruning at initial connection and while connected; it verifies group messaging, private messaging in both directions, and private history restoration. Both TypeScript checks, all **124 tests in 32 files**, and the Next.js production build pass locally. Ledger authentication, retention, and transaction receipts in these tests are simulated. They are not live DevNet execution evidence.
+
+After applying and deploying this update, use the existing room without clearing browser storage. Reload both participants' pages, approve remaining handshake requests, wait for both connections, send a different unique message from each Party, and confirm both exact texts on both screens. Refresh once and confirm history. If a request times out after submission, verify its ledger status before sending it again. Record any remaining error and connection stage from each screen; do not claim completion until this browser test succeeds. Active contracts can recover retained welcomes/messages, but cannot reconstruct archived history or replace missing device MLS keys.
+
+Official reference: [Digital Asset Ledger API StateService and pruning constraints](https://docs.digitalasset.com/build/3.4/reference/lapi-proto-docs.html).
+
 ### First gate: browser-only DevNet login
 
 1. Deploy the update to **Production** with the server session key configured. Open `https://vinss-canton.vercel.app/connect-test` in a full desktop or Android browser.

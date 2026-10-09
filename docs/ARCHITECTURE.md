@@ -75,6 +75,10 @@ Membership metadata (title, roles, Party credentials and installation roster) tr
 
 Multiple browser tabs or simultaneously active runtimes for the same installation do not have a cross-tab MLS write lock. Use one active room tab per installation for the demo. Device linking, durable pending-message outbox/reconciliation and offline delivery guarantees are not implemented; a successful submit followed by a local storage failure can leave an on-ledger message that the UI reported as failed. Retry sending can produce a new message ID. Canton transaction acknowledgements must be checked before assuming a message/offer succeeded.
 
+The HTTP ledger reader recovers `PARTICIPANT_PRUNED_DATA_ACCESSED` on an update-range read by fetching the current party-filtered active contract set. This covers a fresh message cursor at zero and a saved cursor that predates participant retention. Original contract offsets remain unchanged and sorted, so a retained MLS welcome precedes later commits and ciphertext. The poller advances its saved offset only after successful local processing. This recovery does not resubmit a transaction, reset MLS keys, or widen Party access. Archived/pruned history cannot be recovered from the active contract set; local plaintext history is retained independently.
+
+The private-room UI displays initialization stages, permits composing a local draft before encryption is ready, and enables sending only after the runtime and membership are ready. A failed initialization shows an explicit retry. A draft remains in the mounted page during retry; it is not persisted across refresh. Recent-room metadata preserves the invite's signed key-package binding request.
+
 ## Deal & Escrow (Rekber)
 
 The [escrow guide](ESCROW.md) maps every template, authorized actor and funding check in this workflow.

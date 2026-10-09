@@ -308,6 +308,8 @@ export interface CantonRoomInput {
 
   onStatus(status: CantonRoomStatus): void;
 
+  onProgress?(message: string): void;
+
   onMessages(messages: readonly CantonRoomMessage[]): void;
 
   onOffers?(offers: readonly CantonRoomOffer[]): void;
@@ -371,6 +373,7 @@ export class CantonRoomRuntime {
 
   static async connect(input: CantonRoomInput): Promise<CantonRoomRuntime> {
     input.onStatus("connecting");
+    input.onProgress?.("Checking your Canton account…");
 
     const ledger = await CantonDappLedgerClient.connect(input.walletParty);
 
@@ -473,6 +476,9 @@ export class CantonRoomRuntime {
       credential: encoder.encode(directory.activeParty()),
     };
 
+    input.onProgress?.("Loading message encryption…");
+    await loadOpenMls();
+    input.onProgress?.("Preparing encryption keys. Review the approval requests that appear.");
     await provider.initialize(identity);
 
     const peerMember = {
@@ -541,6 +547,9 @@ export class CantonRoomRuntime {
 
     synchronize = (id, cursor) =>
       runtime.serialize(() => provider.sync(id, cursor));
+    input.onProgress?.(input.creator
+      ? "Establishing the encrypted room. Approve its handshake requests."
+      : "Waiting for the creator’s encrypted welcome…");
     await runtime.serialize(() => runtime.prepare());
 
     const consume = async (
@@ -598,6 +607,7 @@ export class CantonRoomRuntime {
       input.conversationId,
       await history.list(input.conversationId),
     );
+    input.onProgress?.("Synchronizing the encrypted conversation with Canton…");
     runtime.#subscription = await live.start({
       onMessages: consume,
       async onLedgerOffset() {

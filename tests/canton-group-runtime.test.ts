@@ -1,5 +1,6 @@
 import { it, expect, vi, afterEach } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
+import { HttpCantonLedgerClient } from "../src/canton/http-ledger-client.js";
 import type {
   CantonLedgerClient,
   CantonCreatedContract,
@@ -56,6 +57,8 @@ it("real WASM runtime admits two wallet-bound guests and delivers group messages
   vi.stubGlobal("indexedDB", new IDBFactory());
   const records: CantonCreatedContract[] = [];
   let offset = 0n;
+  let prunedThrough = 1n;
+  let recoveredReads = 0;
   const visible = (c: CantonCreatedContract, p: string) =>
     [
       c.createArgument.sender,
@@ -64,7 +67,26 @@ it("real WASM runtime admits two wallet-bound guests and delivers group messages
       c.createArgument.recipient,
       ...((c.createArgument.recipients as string[]) ?? []),
     ].includes(p);
-  for (const party of ["Alice", "Bob", "Charlie"])
+  for (const party of ["Alice", "Bob", "Charlie"]) {
+    const history = new HttpCantonLedgerClient({
+      baseUrl: "https://test-ledger.example", userId: party,
+      fetcher: async (input, init) => {
+        const path = new URL(String(input)).pathname;
+        if (path === "/v2/state/ledger-end") return Response.json({ offset: offset.toString() });
+        const body = JSON.parse(String(init?.body));
+        if (path === "/v2/updates" && BigInt(body.beginExclusive) < prunedThrough) {
+          recoveredReads++;
+          return Response.json({ code: "PARTICIPANT_PRUNED_DATA_ACCESSED" }, { status: 400 });
+        }
+        const rows = records.filter(c => visible(c, party)).map(c => ({ ...c, offset: c.offset.toString() }));
+        if (path === "/v2/state/active-contracts") {
+          expect(Object.keys(body.eventFormat.filtersByParty)).toEqual([party]);
+          return Response.json(rows.map(createdEvent => ({ contractEntry: { JsActiveContract: { createdEvent } } })));
+        }
+        if (path === "/v2/updates") return Response.json([{ update: { Transaction: { events: rows.filter(c => BigInt(c.offset) > BigInt(body.beginExclusive)).map(CreatedEvent => ({ CreatedEvent })) } } }]);
+        throw new Error(`Unexpected history path: ${path}`);
+      },
+    });
     clients.set(party, {
       async getAuthenticatedIdentity() {
         return {
@@ -96,11 +118,11 @@ it("real WASM runtime admits two wallet-bound guests and delivers group messages
         return { offset, contracts: await this.queryActiveContracts(p) };
       },
       async queryCreatedContractsSince(p, after) {
-        return (await this.queryActiveContracts(p)).filter(
-          (c) => c.offset > after,
-        );
+        expect(p).toBe(party);
+        return history.queryCreatedContractsSince(p, after);
       },
     });
+  }
   const invite = makeInvite("Alice", "Runtime group", "group");
   saveInvite(invite);
   const received = new Map<string, PlainMessage[]>();
@@ -197,7 +219,13 @@ it("real WASM runtime admits two wallet-bound guests and delivers group messages
       ),
     { timeout: 10000, interval: 250 },
   );
+  // Advance retention while connected, so old live/message cursors must
+  // recover again without discarding MLS keys or skipping retained messages.
+  const readsBeforeRetentionAdvanced = recoveredReads;
   const toAlice = await bobPrivate.sendText("Private Bob to Alice");
+  // The next reader runs after this transaction has entered the retention
+  // boundary; its retained active ciphertext must still be recoverable.
+  prunedThrough = offset;
   await vi.waitFor(
     () =>
       expect(
@@ -205,6 +233,7 @@ it("real WASM runtime admits two wallet-bound guests and delivers group messages
       ).toBe(true),
     { timeout: 10000, interval: 250 },
   );
+  expect(recoveredReads).toBeGreaterThan(readsBeforeRetentionAdvanced);
   bobPrivate.close();
   privateMessages.set("Bob", []);
   bobPrivate = await privateRoom("Bob");
@@ -213,4 +242,5 @@ it("real WASM runtime admits two wallet-bound guests and delivers group messages
     toAlice.id,
   ]);
   expect(errors.map((e) => e.message)).toEqual([]);
+  expect(recoveredReads).toBeGreaterThan(0);
 }, 30000);

@@ -8,7 +8,7 @@ export function RoomHeader({
 }: {
   label: string;
   roomId: string;
-  status: "idle" | "connecting" | "waiting_peer" | "ready";
+  status: "idle" | "connecting" | "waiting_peer" | "ready" | "error";
 }) {
   return (
     <header className="room-heading">
@@ -31,6 +31,8 @@ export function RoomHeader({
             ? "Waiting for guest"
             : status === "connecting"
               ? "Connecting"
+              : status === "error"
+                ? "Connection failed"
               : "Not connected"}
       </span>
     </header>
