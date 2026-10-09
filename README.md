@@ -6,6 +6,8 @@ VINSS brings two people into one private room to negotiate, agree on an offer, f
 
 [Open the app](https://vinss-canton.vercel.app) · [Pitch deck](docs/vinss-deck.pdf) · [Submission materials](docs/README.md) · [Demo and evidence](docs/SUBMISSION.md)
 
+**DevNet wallet connection is still externally blocked.** Send Connect supports MainNet/TestNet and Grofty supports MainNet. The current DevNet deployment needs a compatible wallet or an operator-supplied CIP-103 Wallet Gateway. The chooser excludes those incompatible releases on DevNet, offers a dedicated configured gateway, and reports missing access instead of opening Send Connect. The HackCanton NODERS web wallet is not itself the gateway endpoint. See [Wallet setup](docs/WALLET_SETUP.md#hackcanton-devnet-access) before claiming a working browser connection.
+
 ## The problem
 
 People arranging a direct deal with a new counterparty must decide who pays or delivers first. Their conversation, final terms and payment records live in different places. Messages and transfer screenshots do not provide a shared process for completing the agreement.

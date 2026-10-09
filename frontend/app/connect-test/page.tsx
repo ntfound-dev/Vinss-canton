@@ -33,11 +33,18 @@ export default function ConnectTestPage() {
       <div>Application network: <strong>{network}</strong></div>
       <div>Grofty SDK: 0.2.0 — direct provider discovery, Wallet 2.0.4+ required, MainNet only</div>
       <div>CIP-103 extension discovery: enabled</div>
-      <div>Configured remote gateway: {gatewayConfigured ? "available in wallet picker" : "none; use a compatible extension or enter your provider’s HTTPS RPC endpoint"}</div>
+      <div>Configured remote gateway: {gatewayConfigured ? "available via the dedicated wallet gateway option" : "missing; a network-compatible wallet or CIP-103 gateway is required"}</div>
       <div>WalletConnect: {wcConfigured ? "configured; choose a wallet supporting Canton dApp methods" : "not configured for this deployment"}</div>
       <div>Connection: {wallet.session ? "approved" : wallet.busy ? "waiting for wallet" : "disconnected"}</div>
     </dl>
     <CantonWalletConnect />
+    {network === "devnet" && <div className="ui-alert info">
+      <p><strong>DevNet connection setup</strong></p>
+      <p>Send Connect supports MainNet/TestNet; Grofty supports MainNet. They cannot authorize this DevNet deployment.</p>
+      {!gatewayConfigured && <p>The operator must supply a DevNet CIP-103 Wallet Gateway and configure <code>NEXT_PUBLIC_CANTON_WALLET_GATEWAY_URL</code> in Vercel Production, then redeploy. VINSS will open that gateway for wallet approval.</p>}
+      <p>The HackCanton NODERS web wallet and JSON Ledger API are separate services. Do not paste either URL into the custom wallet field unless the operator confirms a CIP-103 endpoint. Logging into the web wallet alone does not connect it to VINSS.</p>
+      <p><a href="https://wallet.validator.hackcanton-01.devnet.naas.noders.services" target="_blank" rel="noopener noreferrer">Open HackCanton DevNet wallet</a> to check your sandbox account. This link does not connect or submit transactions.</p>
+    </div>}
     {wallet.session && <>
       <p className="mono break-word">Party ID: {wallet.session.partyId}</p>
       <button className="ui-button" disabled={checking} onClick={() => void checkLedger()}>{checking ? "Checking…" : "Check ledger access"}</button>

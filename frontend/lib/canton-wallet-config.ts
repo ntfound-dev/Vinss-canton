@@ -1,8 +1,10 @@
 import { discoverGrofty, networkMatches } from "./grofty-wallet";
 import type * as CantonSdk from "@canton-network/dapp-sdk";
+import { applicationNetwork, compatibleWalletEntries, configuredWalletGateway } from "./canton-wallet-policy";
 let sdkPromise: Promise<typeof CantonSdk> | undefined;
-export type WalletKind = "canton" | "grofty";
+export type WalletKind = "canton" | "grofty" | "gateway";
 let selected: WalletKind = "canton";
+let canton: CantonSdk.DappSDK | undefined;
 let grofty: Awaited<ReturnType<typeof discoverGrofty>> | undefined;
 export async function selectWallet(kind: WalletKind) {
   if (kind === "grofty") {
@@ -12,13 +14,18 @@ export async function selectWallet(kind: WalletKind) {
     if (!probe.network?.networkId || !networkMatches(probe.network.networkId, expected))
       throw new Error(`Grofty is MainNet only (${probe.network?.networkId || "unknown network"}). This VINSS deployment expects ${expected}. Use a wallet supporting this deployment network. A separate MainNet deployment needs matching Canton contracts and registries.`);
     grofty = found;
-  } else await initCantonWalletSdk();
+  } else {
+    if (kind === "gateway" && !configuredWalletGateway())
+      throw new Error("The DevNet wallet gateway is not configured on this deployment. Open Connection help for setup.");
+    await initCantonWalletSdk();
+  }
   selected = kind;
 }
 export async function restoreWalletSelection() {
   let saved: string | null = null;
   try { saved = localStorage.getItem("vinss.wallet.kind"); } catch {}
   if (saved === "grofty") await selectWallet("grofty");
+  else if (saved === "gateway") await selectWallet("gateway");
   else await initCantonWalletSdk();
 }
 export function rememberWalletSelection() {
@@ -28,7 +35,7 @@ export function forgetWalletSelection() {
   try { localStorage.removeItem("vinss.wallet.kind"); } catch {}
 }
 export async function loadActiveWalletSdk() {
-  return selected === "grofty" && grofty ? grofty : loadCantonWalletSdk();
+  return selected === "grofty" && grofty ? grofty : canton ?? loadCantonWalletSdk();
 }
 let initPromise: Promise<void> | undefined;
 export function loadCantonWalletSdk() {
@@ -41,13 +48,35 @@ export function initCantonWalletSdk(): Promise<void> {
   if (initPromise) return initPromise;
   initPromise = (async () => {
     const sdk = await loadCantonWalletSdk();
-    const gateway = process.env.NEXT_PUBLIC_CANTON_WALLET_GATEWAY_URL?.trim();
+    // The SDK's built-in picker advertises detected extensions without checking
+    // their supported networks. Keep discovery but apply VINSS network policy.
+    canton ??= new sdk.DappSDK({ walletPicker: async entries => {
+      const gateway = configuredWalletGateway();
+      let compatible = compatibleWalletEntries(entries, applicationNetwork());
+      if (selected === "gateway") {
+        if (!gateway) throw new Error("Wallet gateway is not configured on this deployment.");
+        const rpcUrl = gatewayRpcUrl(gateway);
+        compatible = compatible.filter(entry => entry.type === "remote" && entry.url === rpcUrl);
+      }
+      if (!compatible.length)
+        throw new Error(`No ${applicationNetwork()} wallet is available in this browser. Configure a wallet gateway for this network; Send Connect cannot connect to DevNet.`);
+      const { pickWallet } = await import("@canton-network/core-wallet-ui-components");
+      const picked = await pickWallet(compatible);
+      if (!compatibleWalletEntries([picked], applicationNetwork()).length)
+        throw new Error("The selected wallet does not support this application's network.");
+      if (selected === "gateway" && picked.providerId !== compatible[0].providerId)
+        throw new Error("Choose this deployment's configured wallet gateway.");
+      if (picked.type === "remote" && picked.url) gatewayRpcUrl(picked.url);
+      return picked;
+    } });
+    const gateway = configuredWalletGateway();
     if (!gateway) {
-      await sdk.init({ defaultAdapters: recentGatewayAdapters(sdk), additionalAdapters: walletConnectAdapters(sdk) });
+      await canton.init({ defaultAdapters: recentGatewayAdapters(sdk), additionalAdapters: walletConnectAdapters(sdk), enableSuggestedWallets: applicationNetwork() !== "devnet" });
       return;
     }
     const clean = gatewayRpcUrl(gateway);
-    await sdk.init({
+    await canton.init({
+      enableSuggestedWallets: applicationNetwork() !== "devnet",
       additionalAdapters: walletConnectAdapters(sdk),
       defaultAdapters: [
         new sdk.RemoteAdapter({
@@ -60,6 +89,7 @@ export function initCantonWalletSdk(): Promise<void> {
     });
   })().catch((error) => {
     initPromise = undefined;
+    canton = undefined;
     throw error;
   });
   return initPromise;

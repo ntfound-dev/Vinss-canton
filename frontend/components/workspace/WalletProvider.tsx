@@ -120,10 +120,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const pending = (async () => {
           await selectWallet(kind);
           const sdk = await loadActiveWalletSdk();
-          if (
-            !(await sdk.isConnected()).isConnected &&
-            !(await sdk.connect()).isConnected
-          )
+          // Explicit gateway selection must open that gateway even when the SDK
+          // previously restored a browser-extension session.
+          if ((kind === "gateway" || !(await sdk.isConnected()).isConnected) &&
+            !(await sdk.connect()).isConnected)
             throw new Error(
               "Connection cancelled. Choose a wallet to try again.",
             );

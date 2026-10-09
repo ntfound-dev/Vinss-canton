@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useWallet, type WalletSession } from "./workspace/WalletProvider";
 import { Icon } from "./workspace/Icon";
 import { shortId } from "@/lib/workspace";
+import { applicationNetwork, configuredWalletGateway } from "@/lib/canton-wallet-policy";
 export type CantonWalletSession = WalletSession;
 export function CantonWalletConnect({
   onConnected,
@@ -15,6 +16,8 @@ export function CantonWalletConnect({
   const [choosing, setChoosing] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const network = applicationNetwork();
+  const gatewayAvailable = Boolean(configuredWalletGateway());
   useEffect(() => {
     if (wallet.session) setChoosing(false);
     const element = dialog.current;
@@ -80,12 +83,18 @@ export function CantonWalletConnect({
           <h2 id={titleId}>Connect wallet</h2>
           <button type="button" className="ui-button wallet-dialog-close" aria-label="Close wallet selection" disabled={wallet.busy} onClick={() => setChoosing(false)}>×</button>
         </div>
-        <p className="wallet-dialog-description">Choose your wallet to continue.</p>
-        <button type="button" className="ui-button primary wallet-choice" disabled={wallet.busy || wallet.loading} onClick={() => void wallet.connect("grofty")}>
-          <Icon name="wallet" /><span>Grofty</span><span className="wallet-choice-arrow" aria-hidden="true">→</span>
+        <p className="wallet-dialog-description">Connect a wallet on Canton {network === "devnet" ? "DevNet" : network === "testnet" ? "TestNet" : "MainNet"}.</p>
+        {(network === "devnet" || gatewayAvailable) && <>
+          <button type="button" className="ui-button primary wallet-choice" disabled={wallet.busy || wallet.loading || !gatewayAvailable} onClick={() => void wallet.connect("gateway")}>
+            <Icon name="wallet" /><span>{network === "devnet" ? "DevNet wallet" : "Wallet gateway"}</span><span className="wallet-choice-arrow" aria-hidden="true">→</span>
+          </button>
+          {!gatewayAvailable && <p className="wallet-dialog-description" role="status">DevNet wallet access is not configured yet. <a href="/connect-test">Connection setup</a></p>}
+        </>}
+        <button type="button" className="ui-button wallet-choice" disabled={wallet.busy || wallet.loading || network !== "mainnet"} onClick={() => void wallet.connect("grofty")}>
+          <Icon name="wallet" /><span>Grofty{network !== "mainnet" ? " · MainNet only" : ""}</span><span className="wallet-choice-arrow" aria-hidden="true">→</span>
         </button>
         <button type="button" className="ui-button wallet-choice" disabled={wallet.busy || wallet.loading} onClick={() => void wallet.connect("canton")}>
-          <Icon name="wallet" /><span>Other Canton wallets</span><span className="wallet-choice-arrow" aria-hidden="true">→</span>
+          <Icon name="wallet" /><span>{network === "devnet" ? "Other DevNet wallets" : "Other Canton wallets"}</span><span className="wallet-choice-arrow" aria-hidden="true">→</span>
         </button>
         <p className="wallet-dialog-description" role="status">{wallet.busy ? "Waiting for wallet approval…" : "Approve the connection in your wallet."}</p>
         {wallet.error && <div className="wallet-dialog-error"><p role="alert">{wallet.error}</p><a href="/connect-test">Connection help</a></div>}

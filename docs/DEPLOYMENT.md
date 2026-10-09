@@ -21,6 +21,17 @@ Optional operator CLI from repository root after authorized Vercel login:
 npx vercel
 ```
 
+That command creates a **Preview**, with a generated URL. It does not update `https://vinss-canton.vercel.app`. To deploy the local branch to the existing production project:
+
+```bash
+cd ~/vinss-canton
+npx vercel --prod
+```
+
+Confirm the CLI prints **Production**, **Aliased https://vinss-canton.vercel.app** and **Ready**. Vercel Production/Preview and Canton MainNet/DevNet are separate configuration choices. A Production website can use Canton DevNet. Preview and Production variables can differ; configure and rebuild the environment being tested. Vercel Authentication may restrict unauthenticated testers; the project owner controls that setting.
+
+The DevNet gateway requirement is in [Wallet setup](WALLET_SETUP.md#hackcanton-devnet-access). Neither a successful deploy nor a visible Send Connect extension supplies a DevNet signing provider. The sandbox web wallet is not a verified CIP-103 endpoint. Obtain the gateway URL from the operator, configure `NEXT_PUBLIC_CANTON_WALLET_GATEWAY_URL`, and verify actual approval, Party ID and ledger read after deployment.
+
 Use a preview first. Promote only a reviewed build whose wallet and ledger configuration matches the intended network. Real-funds MainNet transactions/DAR deployment are outside this change's authorization.
 
 ## Canton dependencies

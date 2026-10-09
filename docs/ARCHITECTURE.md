@@ -96,6 +96,8 @@ Jobs currently come from validated `frontend/data/jobs.json`, with search/catego
 
 SDK initialization registers CIP-103 extensions, configured/recent HTTPS gateways and optional Canton WalletConnect. The app excludes the SDK's development-only localhost default. Account/connection events update usable sessions. Authenticated `status` must report a connected network matching the deployment; account Party must be allocated and enabled on that network. Ledger requests revalidate the connection/network before delegating to wallet authorization. Primary account selection remains in the wallet.
 
+A VINSS `DappSDK` instance applies network policy before the SDK picker opens: published Send Connect is excluded on DevNet; Grofty is enabled only on MainNet. Other providers still need actual network validation. An explicit gateway choice restricts the picker to the configured RemoteAdapter; it cannot silently choose an installed extension. Missing gateway access is shown in the chooser and diagnostics. The NODERS sandbox's Splice web wallet/JSON Ledger API are distinct from a CIP-103 Wallet Gateway; operator infrastructure is still required for browser DevNet approval.
+
 `/connect-test` exposes only configuration presence, network, approved Party and an explicit read-only ledger-offset check; it does not print SDK status/session objects containing credentials. This is diagnostic code, not evidence of a successful external wallet connection.
 
 Funding recovery looks up the active agreement and checks its terms; existing compatible, unexpired allocations can be reused. The payer UI exposes retry and disables unfunded delivery. See [Escrow](ESCROW.md). There is no current DecMan module or deployed shared VINSS Party; see [BitSafe Gold](BITSAFE_GOLD.md).

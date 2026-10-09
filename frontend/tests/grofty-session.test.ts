@@ -3,7 +3,9 @@ const mock = vi.hoisted(() => ({
   create: vi.fn(), status: vi.fn(), accounts: vi.fn(), connect: vi.fn(), init: vi.fn(),
 }));
 vi.mock("@groftylabs/dapp-sdk", async (original) => ({ ...await original<typeof import("@groftylabs/dapp-sdk")>(), createGroftyClient: mock.create }));
-vi.mock("@canton-network/dapp-sdk", () => ({ init: mock.init, status: mock.status, listAccounts: mock.accounts, RemoteAdapter: class {}, WalletConnectAdapter: class {} }));
+vi.mock("@canton-network/dapp-sdk", () => ({ init: mock.init, status: mock.status, listAccounts: mock.accounts,
+  DappSDK: class { init = mock.init; status = mock.status; listAccounts = mock.accounts; },
+  RemoteAdapter: class {}, WalletConnectAdapter: class {} }));
 let config: typeof import("../lib/canton-wallet-config");
 const primary = { partyId: "Alice", primary: true, status: "allocated", networkId: "canton:da-mainnet" };
 beforeEach(async () => {
@@ -25,7 +27,7 @@ it("keeps the existing Canton connection route when switching away from Grofty",
   vi.stubEnv("NEXT_PUBLIC_CANTON_NETWORK", "mainnet");
   await config.selectWallet("grofty");
   await config.selectWallet("canton");
-  expect(mock.init).toHaveBeenCalledWith({ defaultAdapters: [], additionalAdapters: [] });
+  expect(mock.init).toHaveBeenCalledWith({ defaultAdapters: [], additionalAdapters: [], enableSuggestedWallets: true });
   expect((await config.loadActiveWalletSdk()).status).toBe(mock.status);
 });
 it("restores only the selected wallet and does not fall back silently when absent", async () => {

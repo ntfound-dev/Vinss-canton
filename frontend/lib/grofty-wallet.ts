@@ -69,9 +69,9 @@ export async function discoverGrofty() {
 }
 export function walletErrorMessage(error: unknown): string {
   const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
-  if (code === 4001) return "Connection or transaction rejected in Grofty. You can retry when ready.";
-  if (code === 4100) return "Grofty access is not authorized. Unlock/sign in to the wallet and approve VINSS again.";
-  if (code === -32601) return "This wallet method is unavailable. Update Grofty to 2.0.4+; some VINSS ledger workflows require a wallet with the full Ledger API.";
-  if (code === -32603) return "Grofty could not complete the request or approval timed out. Check wallet activity before retrying a transaction.";
+  if (code === 4001) return "Connection or transaction rejected in your wallet. You can retry when ready.";
+  if (code === 4100) return "Wallet access is not authorized. Unlock/sign in to the wallet and approve VINSS again.";
+  if (code === -32601) return "This wallet method is unavailable. Update your wallet; VINSS ledger workflows require a compatible Ledger API.";
+  if (code === -32603) return "The wallet could not complete the request or approval timed out. Check wallet activity before retrying a transaction.";
   return error instanceof Error ? error.message : String(error);
 }

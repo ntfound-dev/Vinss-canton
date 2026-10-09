@@ -24,6 +24,10 @@ Live messaging requires existing isolated user credentials and explicit opt-in; 
 
 ## Current local record (2026-10-09)
 
+The DevNet routing update passes both TypeScript checks, **97 tests in 29 files**, and the Next.js production build. HTTP smoke checks return 200 for Home, `/connect-test`, `/invite/new`, `/rooms`, `/jobs`, and `/deals`; rendered diagnostics show the network/gateway setup state. Added tests cover network filtering, missing gateway errors before wallet approval, dedicated gateway selection despite installed extensions, preservation of TestNet/MainNet paths, and retry after SDK initialization failure. These use mocks and do not prove live wallet authorization. Interactive desktop/Android verification of this patch was not completed; a local Chromium download failed in this environment.
+
+DevNet browser acceptance: open the updated production `/connect-test`; the chooser must not offer Send Connect for DevNet. With no configured gateway and only Send installed, **Other DevNet wallets** must show a readable error without opening Send approval. **DevNet wallet** remains unavailable until the operator supplies a real gateway. With that endpoint configured, approve there, verify the correct Party ID, read the ledger offset, reload, then disconnect/reconnect. That second phase is externally blocked and has not been completed. See [Wallet setup](WALLET_SETUP.md#hackcanton-devnet-access).
+
 - Root and frontend TypeScript: passed.
 - Vitest: 76 tests passed across 26 files, including wallet boundary/network tests and allocation recovery tests.
 - Next.js production build: passed; routes include `/connect-test`, invites, rooms, jobs and deals.
